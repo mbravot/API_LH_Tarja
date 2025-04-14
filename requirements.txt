@@ -5,3 +5,4 @@ bcrypt
 mysql-connector-python
 gunicorn
 flask-jwt-extended
+python-dotenv
