@@ -37,6 +37,9 @@ def create_app():
 
     return app
 
+# Crear la instancia de la aplicación a nivel global
+app = create_app()
+
 if __name__ == '__main__':
     app = create_app()
     app.run(debug=True, host='0.0.0.0', port=5000)
