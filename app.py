@@ -8,8 +8,17 @@ from datetime import timedelta
 # Crear la aplicación Flask
 def create_app():
     app = Flask(__name__)
-    CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
-  # Permitir peticiones desde otros dominios (como localhost)
+    
+    # Configurar CORS
+    CORS(app, resources={
+        r"/api/*": {
+            "origins": ["http://localhost:*", "http://127.0.0.1:*", "http://192.168.1.208:*"],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"],
+            "supports_credentials": True,
+            "expose_headers": ["Content-Type", "Authorization"]
+        }
+    })
 
     # Configurar JWT
     app.config['JWT_SECRET_KEY'] = Config.JWT_SECRET_KEY  # ✅
@@ -26,6 +35,7 @@ def create_app():
     from blueprints.opciones import opciones_bp
     from blueprints.trabajadores import trabajadores_bp
     from blueprints.contratistas import contratistas_bp
+    from blueprints.tarjas import tarjas_bp
     
     app.register_blueprint(contratistas_bp, url_prefix='/api/contratistas')
     app.register_blueprint(trabajadores_bp, url_prefix='/api/trabajadores')
@@ -34,13 +44,13 @@ def create_app():
     app.register_blueprint(actividades_bp, url_prefix="/api/actividades")
     app.register_blueprint(rendimientos_bp, url_prefix="/api/rendimientos")
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    app.register_blueprint(tarjas_bp, url_prefix='/api/tarjas')
 
     return app
 
-# Crear la instancia de la aplicación a nivel global
+# Crear una única instancia de la aplicación
 app = create_app()
 
 if __name__ == '__main__':
-    app = create_app()
     app.run(debug=True, host='0.0.0.0', port=5000)
 

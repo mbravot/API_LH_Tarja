@@ -16,7 +16,7 @@ conn = mysql.connector.connect(
 cursor = conn.cursor()
 
 # 🔍 Buscar todas las contraseñas en texto plano
-cursor.execute("SELECT id, clave FROM Usuarios")
+cursor.execute("SELECT id, clave FROM general_dim_usuario")
 usuarios = cursor.fetchall()
 
 for id, clave in usuarios:
@@ -29,7 +29,7 @@ for id, clave in usuarios:
         clave_encriptada = bcrypt.hashpw(clave.encode('utf-8'), salt).decode('utf-8')
 
         # Actualizar la contraseña en la base de datos
-        cursor.execute("UPDATE Usuarios SET clave = %s WHERE id = %s", (clave_encriptada, id))
+        cursor.execute("UPDATE general_dim_usuario SET clave = %s WHERE id = %s", (clave_encriptada, id))
 
 conn.commit()
 cursor.close()

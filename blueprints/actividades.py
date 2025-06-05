@@ -7,12 +7,82 @@ from datetime import datetime, date, timedelta
 
 actividades_bp = Blueprint('actividades_bp', __name__)
 
+# 🚀 Endpoint para obtener actividades por sucursal
+@actividades_bp.route('/sucursal/<string:id_sucursal>', methods=['GET'])
+@jwt_required()
+def obtener_actividades_por_sucursal(id_sucursal):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        sql = """
+            SELECT 
+                a.id, 
+                a.fecha, 
+                a.estado,
+                a.id_especie,
+                a.id_variedad,
+                a.id_ceco,
+                a.id_labor,
+                a.id_unidad,
+                a.id_tipo_trab,
+                a.id_tipo_rend,
+                a.id_contratista,
+                a.id_sucursal,
+                a.hora_inicio,
+                a.hora_fin,
+                a.horas_trab,
+                a.tarifa,
+                a.OC,
+                l.nombre AS labor, 
+                c.nombre AS ceco,
+                co.nombre AS contratista, 
+                tr.tipo AS tipo_rend,
+                EXISTS (
+                    SELECT 1 
+                    FROM Rendimientos r 
+                    WHERE r.id_actividad = a.id
+                ) AS tiene_rendimiento
+            FROM Actividades a
+            LEFT JOIN Labores l ON a.id_labor = l.id
+            LEFT JOIN Maestro_Cecos c ON a.id_ceco = c.id
+            LEFT JOIN Contratistas co ON a.id_contratista = co.id
+            LEFT JOIN Tipo_Rendimientos tr ON a.id_tipo_rend = tr.id
+            WHERE a.id_sucursal = %s
+            AND (a.estado = 'creada' OR a.estado = 'revisada')
+            GROUP BY a.id
+            ORDER BY a.fecha DESC
+        """
+
+        cursor.execute(sql, (id_sucursal,))
+        actividades = cursor.fetchall()
+
+        for actividad in actividades:
+            if 'fecha' in actividad and isinstance(actividad['fecha'], (date, datetime)):
+                actividad['fecha'] = actividad['fecha'].strftime('%Y-%m-%d')
+
+            if isinstance(actividad['hora_inicio'], timedelta):
+                actividad['hora_inicio'] = str(actividad['hora_inicio'])
+            if isinstance(actividad['hora_fin'], timedelta):
+                actividad['hora_fin'] = str(actividad['hora_fin'])
+            if isinstance(actividad['horas_trab'], timedelta):
+                actividad['horas_trab'] = str(actividad['horas_trab'])
+
+        cursor.close()
+        conn.close()
+
+        return jsonify(actividades), 200
+
+    except Exception as e:
+        print(f"❌ Error al obtener actividades por sucursal: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# 🚀 Endpoint para obtener todas las actividades  
 @actividades_bp.route('/', methods=['GET'])
 @jwt_required()
 def obtener_actividades():
     try:
         usuario_id = get_jwt_identity()
-
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
@@ -52,7 +122,12 @@ def obtener_actividades():
                 l.nombre AS labor, 
                 c.nombre AS ceco,
                 co.nombre AS contratista, 
-                tr.tipo AS tipo_rend 
+                tr.tipo AS tipo_rend,
+                EXISTS (
+                    SELECT 1 
+                    FROM Rendimientos r 
+                    WHERE r.id_actividad = a.id
+                ) AS tiene_rendimiento
             FROM Actividades a
             LEFT JOIN Labores l ON a.id_labor = l.id
             LEFT JOIN Maestro_Cecos c ON a.id_ceco = c.id
@@ -61,6 +136,7 @@ def obtener_actividades():
             WHERE a.id_usuario = %s 
                 AND a.estado = 'creada'
                 AND a.id_sucursal = %s
+            GROUP BY a.id
         """
 
         cursor.execute(sql, (usuario_id, id_sucursal))
@@ -163,7 +239,7 @@ def crear_actividad():
 # 🚀 Endpoint para editar una actividad existente
 @actividades_bp.route('/<string:actividad_id>', methods=['PUT'])
 @jwt_required()
-def editar_actividad(actividad_id):
+def editar_actividad(actividad_id): 
     try:
         usuario_id = get_jwt_identity()  # Obtener el ID del usuario autenticado
         data = request.json  # Datos enviados desde el frontend
@@ -214,3 +290,5 @@ def editar_actividad(actividad_id):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
