@@ -2,19 +2,20 @@ from flask import Blueprint, jsonify, request
 from utils.db import get_db_connection
 from flask_jwt_extended import jwt_required, get_jwt_identity
 import bcrypt
+from datetime import date
 
 
 usuarios_bp = Blueprint('usuarios_bp', __name__)
 
 def verificar_admin(usuario_id):
-    """Verifica si el usuario tiene rol de administrador (id_rol = 1)"""
+    """Verifica si el usuario tiene perfil de administrador (id_perfil = 3)"""
     conn = get_db_connection()
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT id_rol FROM Usuarios WHERE id = %s", (usuario_id,))
+    cursor.execute("SELECT id_perfil FROM general_dim_usuario WHERE id = %s", (usuario_id,))
     usuario = cursor.fetchone()
     cursor.close()
     conn.close()
-    return usuario and usuario['id_rol'] == 1
+    return usuario and usuario['id_perfil'] == 3
 
 # 🔹 Obtener todos los usuarios (solo admin)
 @usuarios_bp.route('/', methods=['GET'])
@@ -29,12 +30,9 @@ def obtener_usuarios():
         cursor = conn.cursor(dictionary=True)
         cursor.execute("""
     SELECT 
-        u.*, 
-        s.nombre AS nombre_sucursal, 
-        sa.nombre AS sucursal_activa_nombre
-    FROM Usuarios u
-    LEFT JOIN Sucursales s ON u.id_sucursal = s.id
-    LEFT JOIN Sucursales sa ON u.sucursal_activa = sa.id
+        u.id, u.usuario, u.correo, u.id_sucursalactiva, u.id_estado, u.id_rol, u.id_perfil, u.id_colaborador, u.fecha_creacion, s.nombre AS nombre_sucursal
+    FROM general_dim_usuario u
+    LEFT JOIN general_dim_sucursal s ON u.id_sucursalactiva = s.id
 """)
 
         usuarios = cursor.fetchall()
@@ -53,12 +51,19 @@ def crear_usuario():
         return jsonify({"error": "No autorizado"}), 403
 
     data = request.json
-    nombre = data.get('nombre')
+    usuario = data.get('usuario')
     correo = data.get('correo')
     clave = data.get('clave')
-    id_sucursal = data.get('id_Sucursal')
+    id_sucursalactiva = data.get('id_sucursalactiva')
     id_estado = data.get('id_estado')
-    id_rol = data.get('id_rol', 2)  # por defecto, usuario común
+    id_rol = data.get('id_rol', 3)  # por defecto, usuario común
+    id_perfil = data.get('id_perfil', 1)  # por defecto, perfil 1
+    id_colaborador = data.get('id_colaborador')  # puede ser None
+
+    # Validar campos obligatorios
+    campos_obligatorios = [usuario, correo, clave, id_sucursalactiva, id_estado]
+    if any(c in [None, ''] for c in campos_obligatorios):
+        return jsonify({"error": "Faltan campos obligatorios"}), 400
 
     # Generar hash bcrypt
     salt = bcrypt.gensalt()
@@ -68,9 +73,13 @@ def crear_usuario():
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO Usuarios (id, nombre, correo, clave, id_Sucursal, id_estado, id_rol, sucursal_activa)
-            VALUES (UUID(), %s, %s, %s, %s, %s, %s, %s)
-        """, (nombre, correo, clave_encriptada, id_sucursal, id_estado, id_rol, id_sucursal))
+            INSERT INTO general_dim_usuario (
+                id, usuario, correo, clave, id_sucursalactiva, 
+                id_estado, id_rol, id_perfil, id_colaborador, fecha_creacion
+            )
+            VALUES (UUID(), %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (usuario, correo, clave_encriptada, id_sucursalactiva, 
+              id_estado, id_rol, id_perfil, id_colaborador, date.today()))
         conn.commit()
         cursor.close()
         conn.close()
@@ -88,42 +97,49 @@ def editar_usuario(usuario_id):
     cursor = conn.cursor(dictionary=True)
 
     # Verificar si el usuario logueado es administrador
-    cursor.execute("SELECT id_rol FROM Usuarios WHERE id = %s", (usuario_logueado,))
+    cursor.execute("SELECT id_perfil FROM general_dim_usuario WHERE id = %s", (usuario_logueado,))
     usuario = cursor.fetchone()
-    if not usuario or usuario['id_rol'] != 1:
+    if not usuario or usuario['id_perfil'] != 3:
         cursor.close()
         conn.close()
         return jsonify({"error": "No autorizado"}), 403
 
     data = request.json
-    nombre = data.get('nombre')
+    usuario_nombre = data.get('usuario')
     correo = data.get('correo')
     clave = data.get('clave')  # Puede ser None o vacío
-    id_sucursal = data.get('id_sucursal')
-    sucursal_activa = data.get('sucursal_activa')
+    id_sucursalactiva = data.get('id_sucursalactiva')
     id_estado = data.get('id_estado')
-    id_rol = data.get('id_rol')
+    id_rol = data.get('id_rol', 3)
+    id_perfil = data.get('id_perfil', 1)
+    id_colaborador = data.get('id_colaborador')  # puede ser None
+
+    # Validar campos obligatorios
+    campos_obligatorios = [usuario_nombre, correo, id_sucursalactiva, id_estado]
+    if any(c in [None, ''] for c in campos_obligatorios):
+        return jsonify({"error": "Faltan campos obligatorios"}), 400
 
     try:
         if clave:  # Solo si se envió una nueva clave
             salt = bcrypt.gensalt()
             clave = bcrypt.hashpw(clave.encode('utf-8'), salt).decode('utf-8')
-
             sql = """
-                UPDATE Usuarios 
-                SET nombre = %s, correo = %s, clave = %s, id_sucursal = %s,
-                    sucursal_activa = %s, id_estado = %s, id_rol = %s
+                UPDATE general_dim_usuario 
+                SET usuario = %s, correo = %s, clave = %s, id_sucursalactiva = %s,
+                    id_estado = %s, id_rol = %s, id_perfil = %s, id_colaborador = %s
                 WHERE id = %s
             """
-            valores = (nombre, correo, clave, id_sucursal, sucursal_activa, id_estado, id_rol, usuario_id)
+            valores = (usuario_nombre, correo, clave, id_sucursalactiva, 
+                      id_estado, id_rol, id_perfil, id_colaborador, usuario_id)
         else:
             sql = """
-                UPDATE Usuarios 
-                SET nombre = %s, correo = %s, id_sucursal = %s,
-                    sucursal_activa = %s, id_estado = %s, id_rol = %s
+                UPDATE general_dim_usuario 
+                SET usuario = %s, correo = %s, id_sucursalactiva = %s,
+                    id_estado = %s, id_rol = %s, id_perfil = %s, id_colaborador = %s
                 WHERE id = %s
             """
-            valores = (nombre, correo, id_sucursal, sucursal_activa, id_estado, id_rol, usuario_id)
+            valores = (usuario_nombre, correo, id_sucursalactiva, 
+                      id_estado, id_rol, id_perfil, id_colaborador, usuario_id)
 
         cursor.execute(sql, valores)
         conn.commit()
@@ -144,15 +160,15 @@ def eliminar_usuario(usuario_id):
     cursor = conn.cursor(dictionary=True)
 
     # Verificar si el usuario logueado es administrador
-    cursor.execute("SELECT id_rol FROM Usuarios WHERE id = %s", (usuario_logueado,))
+    cursor.execute("SELECT id_perfil FROM general_dim_usuario WHERE id = %s", (usuario_logueado,))
     usuario = cursor.fetchone()
-    if not usuario or usuario['id_rol'] != 1:
+    if not usuario or usuario['id_perfil'] != 3:
         cursor.close()
         conn.close()
         return jsonify({"error": "No autorizado"}), 403
 
     try:
-        cursor.execute("DELETE FROM Usuarios WHERE id = %s", (usuario_id,))
+        cursor.execute("DELETE FROM general_dim_usuario WHERE id = %s", (usuario_id,))
         conn.commit()
         cursor.close()
         conn.close()
@@ -160,56 +176,91 @@ def eliminar_usuario(usuario_id):
         return jsonify({"message": "Usuario eliminado correctamente"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
-
     
 @usuarios_bp.route('/sucursal', methods=['GET'])
 @jwt_required()
 def obtener_sucursal_usuario():
     try:
-        usuario_id = get_jwt_identity()  # Obtener el ID del usuario desde el token JWT
+        usuario_id = get_jwt_identity()
 
-        print(f"🔍 Buscando sucursal para usuario ID: {usuario_id}")  # 👀 Log para depuración
+        print(f"🔍 Buscando sucursal para usuario ID: {usuario_id}")
 
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        cursor.execute("SELECT id_Sucursal FROM Usuarios WHERE id = %s", (usuario_id,))
+        cursor.execute("SELECT id_sucursalactiva FROM general_dim_usuario WHERE id = %s", (usuario_id,))
         usuario = cursor.fetchone()
 
         cursor.close()
         conn.close()
 
-        if not usuario or not usuario['id_Sucursal']:
+        if not usuario or not usuario['id_sucursalactiva']:
             print("❌ Usuario no encontrado o sin sucursal asignada")
             return jsonify({"error": "Usuario no encontrado o sin sucursal asignada"}), 404
 
-        print(f"✅ Sucursal encontrada: {usuario['id_Sucursal']}")  # 👀 Log de éxito
+        print(f"✅ Sucursal encontrada: {usuario['id_sucursalactiva']}")
 
-        return jsonify({"id_sucursal": usuario['id_Sucursal']}), 200
+        return jsonify({"id_sucursal": usuario['id_sucursalactiva']}), 200
     except Exception as e:
-        print(f"❌ Error al obtener sucursal: {str(e)}")  # 👀 Log de error
+        print(f"❌ Error al obtener sucursal: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @usuarios_bp.route('/sucursal-activa', methods=['POST'])
 @jwt_required()
 def actualizar_sucursal_activa():
-    usuario_id = get_jwt_identity()
-    data = request.json
-    nueva_sucursal = data.get("id_sucursal")
+    try:
+        usuario_id = get_jwt_identity()
+        data = request.json
+        nueva_sucursal = data.get("id_sucursal")
 
-    if not nueva_sucursal:
-        return jsonify({"error": "Sucursal no especificada"}), 400
+        if not nueva_sucursal:
+            return jsonify({"error": "Sucursal no especificada"}), 400
 
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE Usuarios SET sucursal_activa = %s WHERE id = %s", (nueva_sucursal, usuario_id))
-    conn.commit()
-    cursor.close()
-    conn.close()
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
 
-    return jsonify({"message": "Sucursal actualizada"}), 200
+        # Verificar que el usuario tenga acceso a la sucursal
+        cursor.execute("""
+            SELECT 1 
+            FROM usuario_pivot_sucursal_usuario 
+            WHERE id_usuario = %s AND id_sucursal = %s
+        """, (usuario_id, nueva_sucursal))
+        
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "No tienes acceso a esta sucursal"}), 403
 
+        # Actualizar la sucursal activa
+        cursor.execute("""
+            UPDATE general_dim_usuario 
+            SET id_sucursalactiva = %s 
+            WHERE id = %s
+        """, (nueva_sucursal, usuario_id))
+        
+        conn.commit()
+
+        # Obtener el nombre de la sucursal para la respuesta
+        cursor.execute("""
+            SELECT nombre 
+            FROM general_dim_sucursal 
+            WHERE id = %s
+        """, (nueva_sucursal,))
+        
+        sucursal = cursor.fetchone()
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "message": "Sucursal actualizada correctamente",
+            "id_sucursal": nueva_sucursal,
+            "sucursal_nombre": sucursal['nombre'] if sucursal else None
+        }), 200
+
+    except Exception as e:
+        print(f"❌ Error al actualizar sucursal activa: {e}")
+        return jsonify({"error": str(e)}), 500
 
 # 🔹 Obtener sucursal activa del usuario logueado
 @usuarios_bp.route('/sucursal-activa', methods=['GET'])
@@ -221,17 +272,46 @@ def obtener_sucursal_activa():
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        cursor.execute("SELECT sucursal_activa FROM Usuarios WHERE id = %s", (usuario_id,))
+        cursor.execute("SELECT id_sucursalactiva FROM general_dim_usuario WHERE id = %s", (usuario_id,))
         usuario = cursor.fetchone()
 
         cursor.close()
         conn.close()
 
-        if not usuario or usuario['sucursal_activa'] is None:
+        if not usuario or usuario['id_sucursalactiva'] is None:
             return jsonify({"error": "No se encontró la sucursal activa"}), 404
 
-        return jsonify({"sucursal_activa": usuario['sucursal_activa']}), 200
+        return jsonify({"sucursal_activa": usuario['id_sucursalactiva']}), 200
 
     except Exception as e:
         print(f"❌ Error al obtener sucursal activa: {e}")
         return jsonify({"error": str(e)}), 500
+
+# Obtener colaboradores según la sucursal activa del usuario logueado o por parámetro
+@usuarios_bp.route('/colaboradores', methods=['GET'])
+@jwt_required()
+def obtener_colaboradores():
+    usuario_id = get_jwt_identity()
+    id_sucursal = request.args.get('id_sucursal')
+    conn = get_db_connection()
+    cursor = conn.cursor(dictionary=True)
+    if not id_sucursal:
+        # Buscar sucursal activa del usuario
+        cursor.execute("SELECT id_sucursalactiva FROM general_dim_usuario WHERE id = %s", (usuario_id,))
+        usuario = cursor.fetchone()
+        if not usuario or not usuario['id_sucursalactiva']:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "No se encontró la sucursal activa del usuario"}), 400
+        id_sucursal = usuario['id_sucursalactiva']
+    # Buscar colaboradores activos de la sucursal
+    cursor.execute("""
+        SELECT id, nombre, apellido_paterno, apellido_materno, rut, codigo_verificador, id_cargo
+        FROM general_dim_colaborador
+        WHERE id_sucursal = %s AND id_estado = 1
+        ORDER BY nombre, apellido_paterno
+    """, (id_sucursal,))
+    colaboradores = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    return jsonify(colaboradores), 200

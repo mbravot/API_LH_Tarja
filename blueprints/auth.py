@@ -3,6 +3,7 @@ import bcrypt
 from config import Config
 from utils.db import get_db_connection
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, create_refresh_token
+from datetime import date
 
 auth_bp = Blueprint('auth_bp', __name__)
 
@@ -11,9 +12,14 @@ def register():
     data = request.json
     correo = data.get('correo')
     clave = data.get('clave')
+    usuario = data.get('usuario')
+    id_sucursalactiva = data.get('id_sucursalactiva')
+    id_estado = data.get('id_estado', 1)  # Por defecto activo
+    id_rol = data.get('id_rol', 3)  # Por defecto usuario común
+    id_perfil = data.get('id_perfil', 1)  # Por defecto perfil 1
 
-    if not correo or not clave:
-        return jsonify({"error": "Correo y clave son requeridos"}), 400
+    if not correo or not clave or not usuario or not id_sucursalactiva:
+        return jsonify({"error": "Correo, clave, usuario y sucursal son requeridos"}), 400
 
     # Generar hash de la contraseña
     salt = bcrypt.gensalt()
@@ -23,8 +29,11 @@ def register():
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO Usuarios (correo, clave) VALUES (%s, %s)",
-            (correo, clave_encriptada.decode('utf-8'))
+            """INSERT INTO general_dim_usuario 
+               (id, usuario, correo, clave, id_sucursalactiva, id_estado, id_rol, id_perfil, fecha_creacion) 
+               VALUES (UUID(), %s, %s, %s, %s, %s, %s, %s, %s)""",
+            (usuario, correo, clave_encriptada.decode('utf-8'), id_sucursalactiva, 
+             id_estado, id_rol, id_perfil, date.today())
         )
         conn.commit()
         cursor.close()
@@ -35,99 +44,216 @@ def register():
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
-    data = request.json
-    correo = data.get('correo')
-    clave = data.get('clave')
+    try:
+        data = request.get_json()
+        usuario = data.get('usuario')
+        clave = data.get('clave')
 
-    conn = get_db_connection()
-    cursor = conn.cursor(dictionary=True)
+        if not usuario or not clave:
+            return jsonify({"error": "Faltan datos de usuario o clave"}), 400
 
-    # 🔄 AÑADIR JOIN para obtener también el nombre de la sucursal
-    cursor.execute("""
-    SELECT u.id, u.nombre, u.sucursal_activa AS id_sucursal, u.clave, s.nombre AS nombre_sucursal, id_rol
-    FROM Usuarios u
-    LEFT JOIN Sucursales s ON u.sucursal_activa = s.id
-    WHERE u.correo=%s
-""", (correo,))
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
 
-    
-    usuario = cursor.fetchone()
+        # Buscar usuario y verificar estado y acceso a la app
+        sql = """
+            SELECT u.*, s.nombre as sucursal_nombre
+            FROM general_dim_usuario u
+            LEFT JOIN general_dim_sucursal s ON u.id_sucursalactiva = s.id
+            WHERE u.usuario = %s 
+            AND u.id_estado = 1
+            AND EXISTS (
+                SELECT 1 
+                FROM usuario_pivot_app_usuario p 
+                WHERE p.id_usuario = u.id 
+                AND p.id_app = 2
+            )
+        """
+        cursor.execute(sql, (usuario,))
+        user = cursor.fetchone()
 
-    cursor.close()
-    conn.close()
+        if not user or not bcrypt.checkpw(clave.encode('utf-8'), user['clave'].encode('utf-8')):
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Usuario o clave incorrectos"}), 401
 
-    if not usuario:
-        return jsonify({"error": "Usuario no encontrado"}), 404
+        # Crear token con información adicional
+        access_token = create_access_token(
+            identity=user['id'],
+            additional_claims={
+                'rol': user['id_rol'],
+                'perfil': user['id_perfil'],
+                'sucursal': user['id_sucursalactiva'],
+                'sucursal_nombre': user['sucursal_nombre']
+            }
+        )
 
-    if not bcrypt.checkpw(clave.encode('utf-8'), usuario['clave'].encode('utf-8')):
-        return jsonify({"error": "Clave incorrecta"}), 401
+        cursor.close()
+        conn.close()
 
-    # ✅ Generar tokens de acceso y refresco
-    access_token = create_access_token(
-        identity=str(usuario['id']),
-        additional_claims={"nombre": usuario['nombre'], "id_sucursal": usuario['id_sucursal']}
-    )
-    refresh_token = create_refresh_token(identity=str(usuario['id']))
+        return jsonify({
+            "access_token": access_token,
+            "usuario": user['usuario'],
+            "id_sucursal": user['id_sucursalactiva'],
+            "sucursal_nombre": user['sucursal_nombre'],
+            "id_rol": user['id_rol'],
+            "id_perfil": user['id_perfil']
+        }), 200
 
-    # ✅ INCLUIR nombre_sucursal en la respuesta
-    return jsonify({
-        "token": access_token,
-        "refresh_token": refresh_token,
-        "nombre": usuario['nombre'],
-        "id_sucursal": usuario['id_sucursal'],
-        "nombre_sucursal": usuario['nombre_sucursal'],  # 🏢 nuevo
-        "id_rol": usuario['id_rol']  # 🔥 Agregado
-    }), 200
-
+    except Exception as e:
+        print(f"❌ Error en login: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @auth_bp.route('/refresh', methods=['POST'])
-@jwt_required(refresh=True)  # 🔥 Este requiere el refresh_token
-def refresh_token():
-    usuario_id = get_jwt_identity()
-    nuevo_token = create_access_token(identity=usuario_id)
-    return jsonify({"token": nuevo_token}), 200
+@jwt_required()
+def refresh():
+    try:
+        usuario_id = get_jwt_identity()
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
 
+        sql = """
+            SELECT u.*, s.nombre as sucursal_nombre
+            FROM general_dim_usuario u
+            LEFT JOIN general_dim_sucursal s ON u.id_sucursalactiva = s.id
+            WHERE u.id = %s 
+            AND u.id_estado = 1
+            AND EXISTS (
+                SELECT 1 
+                FROM usuario_pivot_app_usuario p 
+                WHERE p.id_usuario = u.id 
+                AND p.id_app = 2
+            )
+        """
+        cursor.execute(sql, (usuario_id,))
+        user = cursor.fetchone()
 
+        if not user:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Usuario no encontrado o sin acceso"}), 401
+
+        access_token = create_access_token(
+            identity=user['id'],
+            additional_claims={
+                'rol': user['id_rol'],
+                'perfil': user['id_perfil'],
+                'sucursal': user['id_sucursalactiva'],
+                'sucursal_nombre': user['sucursal_nombre']
+            }
+        )
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "access_token": access_token,
+            "usuario": user['usuario'],
+            "id_sucursal": user['id_sucursalactiva'],
+            "sucursal_nombre": user['sucursal_nombre'],
+            "id_rol": user['id_rol'],
+            "id_perfil": user['id_perfil']
+        }), 200
+
+    except Exception as e:
+        print(f"❌ Error en refresh: {e}")
+        return jsonify({"error": str(e)}), 500
 
 @auth_bp.route('/cambiar-clave', methods=['POST'])
 @jwt_required()
 def cambiar_clave():
     try:
-        data = request.json
-        usuario_id = get_jwt_identity()  # ID del usuario autenticado
-
+        usuario_id = get_jwt_identity()
+        data = request.get_json()
         clave_actual = data.get('clave_actual')
         nueva_clave = data.get('nueva_clave')
 
         if not clave_actual or not nueva_clave:
-            return jsonify({"error": "Debe ingresar ambas contraseñas"}), 400
+            return jsonify({"error": "Faltan datos de clave"}), 400
 
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # Obtener la clave actual del usuario
-        cursor.execute("SELECT clave FROM Usuarios WHERE id = %s", (usuario_id,))
-        usuario = cursor.fetchone()
+        # Verificar clave actual
+        cursor.execute("SELECT clave FROM general_dim_usuario WHERE id = %s", (usuario_id,))
+        user = cursor.fetchone()
 
-        if not usuario:
-            return jsonify({"error": "Usuario no encontrado"}), 404
+        if not user or not bcrypt.checkpw(clave_actual.encode('utf-8'), user['clave'].encode('utf-8')):
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Clave actual incorrecta"}), 401
 
-        # Verificar la clave actual
-        if not bcrypt.checkpw(clave_actual.encode('utf-8'), usuario['clave'].encode('utf-8')):
-            return jsonify({"error": "La contraseña actual es incorrecta"}), 401
-
-        # Cifrar la nueva clave
+        # Generar nuevo hash con bcrypt
         salt = bcrypt.gensalt()
-        clave_encriptada = bcrypt.hashpw(nueva_clave.encode('utf-8'), salt)
+        nueva_clave_hash = bcrypt.hashpw(nueva_clave.encode('utf-8'), salt)
 
-        # Actualizar la clave en la base de datos
-        cursor.execute("UPDATE Usuarios SET clave = %s WHERE id = %s", (clave_encriptada.decode('utf-8'), usuario_id))
+        # Actualizar clave
+        cursor.execute("UPDATE general_dim_usuario SET clave = %s WHERE id = %s", 
+                      (nueva_clave_hash.decode('utf-8'), usuario_id))
         conn.commit()
 
         cursor.close()
         conn.close()
 
-        return jsonify({"message": "Contraseña actualizada correctamente"}), 200
+        return jsonify({"message": "Clave actualizada correctamente"}), 200
 
     except Exception as e:
+        print(f"❌ Error en cambiar_clave: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@auth_bp.route('/cambiar-sucursal', methods=['POST'])
+@jwt_required()
+def cambiar_sucursal():
+    try:
+        usuario_id = get_jwt_identity()
+        data = request.get_json()
+        nueva_sucursal_id = data.get('id_sucursal')
+
+        if not nueva_sucursal_id:
+            return jsonify({"error": "El ID de la sucursal es requerido"}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # Verificar que el usuario tenga acceso a la sucursal
+        cursor.execute("""
+            SELECT 1 
+            FROM usuario_pivot_sucursal_usuario 
+            WHERE id_usuario = %s AND id_sucursal = %s
+        """, (usuario_id, nueva_sucursal_id))
+        
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "No tienes acceso a esta sucursal"}), 403
+
+        # Actualizar la sucursal activa
+        cursor.execute("""
+            UPDATE general_dim_usuario 
+            SET id_sucursalactiva = %s 
+            WHERE id = %s
+        """, (nueva_sucursal_id, usuario_id))
+        
+        conn.commit()
+
+        # Obtener el nombre de la sucursal para la respuesta
+        cursor.execute("""
+            SELECT nombre 
+            FROM general_dim_sucursal 
+            WHERE id = %s
+        """, (nueva_sucursal_id,))
+        
+        sucursal = cursor.fetchone()
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "message": "Sucursal actualizada correctamente",
+            "id_sucursal": nueva_sucursal_id,
+            "sucursal_nombre": sucursal['nombre'] if sucursal else None
+        }), 200
+
+    except Exception as e:
+        print(f"❌ Error al cambiar sucursal: {e}")
         return jsonify({"error": str(e)}), 500

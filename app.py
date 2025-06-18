@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, Blueprint
 from flask_jwt_extended import JWTManager
 from config import Config
 from flask_cors import CORS
@@ -11,19 +11,22 @@ def create_app():
     
     # Configurar CORS
     CORS(app, resources={
-        r"/api/*": {
-            "origins": ["http://localhost:*", "http://127.0.0.1:*", "http://192.168.1.208:*"],
+        r"/*": {
+            "origins": ["http://localhost:*", "http://127.0.0.1:*", "http://192.168.1.52:*", "http://192.168.1.208:*", "http://192.168.1.60:*"],
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization"],
             "supports_credentials": True,
-            "expose_headers": ["Content-Type", "Authorization"]
+            "expose_headers": ["Content-Type", "Authorization"],
+            "max_age": 3600
         }
     })
 
     # Configurar JWT
-    app.config['JWT_SECRET_KEY'] = Config.JWT_SECRET_KEY  # ✅
-    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=5)  # o el tiempo que quieras
-
+    app.config['JWT_SECRET_KEY'] = Config.JWT_SECRET_KEY
+    app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=5)
+    app.config['JWT_TOKEN_LOCATION'] = ['headers']
+    app.config['JWT_HEADER_NAME'] = 'Authorization'
+    app.config['JWT_HEADER_TYPE'] = 'Bearer'
 
     jwt = JWTManager(app)
 
@@ -36,15 +39,33 @@ def create_app():
     from blueprints.trabajadores import trabajadores_bp
     from blueprints.contratistas import contratistas_bp
     from blueprints.tarjas import tarjas_bp
+    from blueprints.colaboradores import colaboradores_bp
+    from blueprints.permisos import permisos_bp
+    from blueprints.rendimientopropio import rendimientopropio_bp
+
     
+    # Registrar blueprints
+    app.register_blueprint(actividades_bp, url_prefix='/api/actividades')
+    app.register_blueprint(rendimientos_bp, url_prefix='/api/rendimientos')
+    app.register_blueprint(usuarios_bp, url_prefix='/api/usuarios')
     app.register_blueprint(contratistas_bp, url_prefix='/api/contratistas')
     app.register_blueprint(trabajadores_bp, url_prefix='/api/trabajadores')
     app.register_blueprint(opciones_bp, url_prefix="/api/opciones")
-    app.register_blueprint(usuarios_bp, url_prefix="/api/usuarios")
-    app.register_blueprint(actividades_bp, url_prefix="/api/actividades")
-    app.register_blueprint(rendimientos_bp, url_prefix="/api/rendimientos")
-    app.register_blueprint(auth_bp, url_prefix='/api/auth')
-    app.register_blueprint(tarjas_bp, url_prefix='/api/tarjas')
+    app.register_blueprint(auth_bp, url_prefix="/api/auth")
+    app.register_blueprint(tarjas_bp, url_prefix="/api/tarjas")
+    app.register_blueprint(colaboradores_bp, url_prefix='/api/colaboradores')
+    app.register_blueprint(permisos_bp, url_prefix='/api/permisos')
+    app.register_blueprint(rendimientopropio_bp, url_prefix='/api/rendimientopropio')
+    
+    # Crear un nuevo blueprint para las rutas raíz
+    root_bp = Blueprint('root_bp', __name__)
+    
+    # Importar y registrar las rutas raíz
+    from blueprints.opciones import obtener_sucursales
+    root_bp.add_url_rule('/sucursales/', 'obtener_sucursales', obtener_sucursales, methods=['GET', 'OPTIONS'])
+    
+    # Registrar el blueprint raíz
+    app.register_blueprint(root_bp, url_prefix="/api")
 
     return app
 

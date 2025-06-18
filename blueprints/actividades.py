@@ -19,37 +19,30 @@ def obtener_actividades_por_sucursal(id_sucursal):
             SELECT 
                 a.id, 
                 a.fecha, 
-                a.estado,
-                a.id_especie,
-                a.id_variedad,
-                a.id_ceco,
+                a.id_estadoactividad,
                 a.id_labor,
                 a.id_unidad,
-                a.id_tipo_trab,
-                a.id_tipo_rend,
+                a.id_tipotrabajador,
+                a.id_tiporendimiento,
                 a.id_contratista,
-                a.id_sucursal,
+                a.id_sucursalactiva,
                 a.hora_inicio,
                 a.hora_fin,
-                a.horas_trab,
                 a.tarifa,
-                a.OC,
                 l.nombre AS labor, 
-                c.nombre AS ceco,
                 co.nombre AS contratista, 
-                tr.tipo AS tipo_rend,
+                tr.nombre AS tipo_rend,
                 EXISTS (
                     SELECT 1 
-                    FROM Rendimientos r 
+                    FROM tarja_fact_rendimiento r 
                     WHERE r.id_actividad = a.id
                 ) AS tiene_rendimiento
-            FROM Actividades a
-            LEFT JOIN Labores l ON a.id_labor = l.id
-            LEFT JOIN Maestro_Cecos c ON a.id_ceco = c.id
-            LEFT JOIN Contratistas co ON a.id_contratista = co.id
-            LEFT JOIN Tipo_Rendimientos tr ON a.id_tipo_rend = tr.id
-            WHERE a.id_sucursal = %s
-            AND (a.estado = 'creada' OR a.estado = 'revisada')
+            FROM tarja_fact_actividad a
+            LEFT JOIN general_dim_labor l ON a.id_labor = l.id
+            LEFT JOIN general_dim_contratista co ON a.id_contratista = co.id
+            LEFT JOIN tarja_dim_tiporendimiento tr ON a.id_tiporendimiento = tr.id
+            WHERE a.id_sucursalactiva = %s
+            AND (a.id_estadoactividad = 1 OR a.id_estadoactividad = 2)  -- 1: creada, 2: revisada
             GROUP BY a.id
             ORDER BY a.fecha DESC
         """
@@ -65,8 +58,6 @@ def obtener_actividades_por_sucursal(id_sucursal):
                 actividad['hora_inicio'] = str(actividad['hora_inicio'])
             if isinstance(actividad['hora_fin'], timedelta):
                 actividad['hora_fin'] = str(actividad['hora_fin'])
-            if isinstance(actividad['horas_trab'], timedelta):
-                actividad['horas_trab'] = str(actividad['horas_trab'])
 
         cursor.close()
         conn.close()
@@ -86,83 +77,130 @@ def obtener_actividades():
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # ✅ Usar la sucursal activa del usuario logueado
-        cursor.execute("SELECT sucursal_activa FROM Usuarios WHERE id = %s", (usuario_id,))
+        # Obtener sucursal activa del usuario
+        cursor.execute("SELECT id_sucursalactiva FROM general_dim_usuario WHERE id = %s", (usuario_id,))
         usuario = cursor.fetchone()
+        if not usuario or not usuario['id_sucursalactiva']:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "No se encontró sucursal activa para el usuario"}), 400
+        id_sucursal = usuario['id_sucursalactiva']
 
-        if not usuario or usuario['sucursal_activa'] is None:
-            print("⚠️ No se encontró la sucursal activa del usuario")
-            return jsonify({"error": "No se encontró la sucursal activa del usuario"}), 400
-
-        id_sucursal = usuario['sucursal_activa']
-        usuario_id = str(usuario_id)
-
-        print(f"🟢 usuario_id: {usuario_id} ({type(usuario_id)})")
-        print(f"🟢 sucursal_activa: {id_sucursal} ({type(id_sucursal)})")
-
-        sql = """
+        # Obtener actividades del usuario SOLO de la sucursal activa y en estado 'creada'
+        cursor.execute("""
             SELECT 
-                a.id, 
-                a.fecha, 
-                a.estado,
-                a.id_especie,
-                a.id_variedad,
-                a.id_ceco,
-                a.id_labor,
-                a.id_unidad,
-                a.id_tipo_trab,
-                a.id_tipo_rend,
-                a.id_contratista,
-                a.id_sucursal,
-                a.hora_inicio,
-                a.hora_fin,
-                a.horas_trab,
-                a.tarifa,
-                a.OC,
-                l.nombre AS labor, 
-                c.nombre AS ceco,
-                co.nombre AS contratista, 
-                tr.tipo AS tipo_rend,
-                EXISTS (
-                    SELECT 1 
-                    FROM Rendimientos r 
-                    WHERE r.id_actividad = a.id
-                ) AS tiene_rendimiento
-            FROM Actividades a
-            LEFT JOIN Labores l ON a.id_labor = l.id
-            LEFT JOIN Maestro_Cecos c ON a.id_ceco = c.id
-            LEFT JOIN Contratistas co ON a.id_contratista = co.id
-            LEFT JOIN Tipo_Rendimientos tr ON a.id_tipo_rend = tr.id
-            WHERE a.id_usuario = %s 
-                AND a.estado = 'creada'
-                AND a.id_sucursal = %s
+                a.*,
+                l.nombre as nombre_labor,
+                u.nombre as nombre_unidad,
+                tt.nombre as nombre_tipotrabajador,
+                c.nombre as nombre_contratista,
+                tr.nombre as nombre_tiporendimiento,
+                tc.nombre as nombre_tipoceco,
+                ea.nombre as nombre_estado,
+                s.nombre as nombre_sucursal,
+                -- CECOs Productivos
+                GROUP_CONCAT(DISTINCT CONCAT(cp.id_ceco, ':', ce.nombre) SEPARATOR '|') as cecos_productivos,
+                -- CECOs de Inversión
+                GROUP_CONCAT(DISTINCT CONCAT(ci.id_ceco, ':', cei.nombre) SEPARATOR '|') as cecos_inversion,
+                -- CECOs de Maquinaria
+                GROUP_CONCAT(DISTINCT CONCAT(cm.id_ceco, ':', cem.nombre) SEPARATOR '|') as cecos_maquinaria,
+                -- CECOs de Riego
+                GROUP_CONCAT(DISTINCT CONCAT(cr.id_ceco, ':', cer.nombre) SEPARATOR '|') as cecos_riego,
+                -- CECOs Administrativos
+                GROUP_CONCAT(DISTINCT CONCAT(ca.id_ceco, ':', cea.nombre) SEPARATOR '|') as cecos_administrativos
+            FROM tarja_fact_actividad a
+            LEFT JOIN general_dim_labor l ON a.id_labor = l.id
+            LEFT JOIN tarja_dim_unidad u ON a.id_unidad = u.id
+            LEFT JOIN general_dim_tipotrabajador tt ON a.id_tipotrabajador = tt.id
+            LEFT JOIN general_dim_contratista c ON a.id_contratista = c.id
+            LEFT JOIN tarja_dim_tiporendimiento tr ON a.id_tiporendimiento = tr.id
+            LEFT JOIN general_dim_cecotipo tc ON a.id_tipoceco = tc.id
+            LEFT JOIN tarja_dim_estadoactividad ea ON a.id_estadoactividad = ea.id
+            LEFT JOIN general_dim_sucursal s ON a.id_sucursalactiva = s.id
+            -- Joins para CECOs Productivos
+            LEFT JOIN tarja_fact_cecoproductivo cp ON a.id = cp.id_actividad
+            LEFT JOIN general_dim_ceco ce ON cp.id_ceco = ce.id
+            -- Joins para CECOs de Inversión
+            LEFT JOIN tarja_fact_cecoinversion ci ON a.id = ci.id_actividad
+            LEFT JOIN general_dim_ceco cei ON ci.id_ceco = cei.id
+            -- Joins para CECOs de Maquinaria
+            LEFT JOIN tarja_fact_cecomaquinaria cm ON a.id = cm.id_actividad
+            LEFT JOIN general_dim_ceco cem ON cm.id_ceco = cem.id
+            -- Joins para CECOs de Riego
+            LEFT JOIN tarja_fact_cecoriego cr ON a.id = cr.id_actividad
+            LEFT JOIN general_dim_ceco cer ON cr.id_ceco = cer.id
+            -- Joins para CECOs Administrativos
+            LEFT JOIN tarja_fact_cecoadministrativo ca ON a.id = ca.id_actividad
+            LEFT JOIN general_dim_ceco cea ON ca.id_ceco = cea.id
+            WHERE a.id_usuario = %s AND a.id_sucursalactiva = %s AND a.id_estadoactividad = 1
             GROUP BY a.id
-        """
+            ORDER BY a.fecha DESC, a.hora_inicio DESC
+        """, (usuario_id, id_sucursal))
 
-        cursor.execute(sql, (usuario_id, id_sucursal))
         actividades = cursor.fetchall()
+        cursor.close()
+        conn.close()
 
+        if not actividades:
+            print(f"⚠️ No se encontraron actividades para el usuario {usuario_id}")
+            return jsonify([]), 200
+
+        # Convertir timedelta a string para hora_inicio y hora_fin
         for actividad in actividades:
-            if 'fecha' in actividad and isinstance(actividad['fecha'], (date, datetime)):
-                actividad['fecha'] = actividad['fecha'].strftime('%Y-%m-%d')
-
             if isinstance(actividad['hora_inicio'], timedelta):
                 actividad['hora_inicio'] = str(actividad['hora_inicio'])
             if isinstance(actividad['hora_fin'], timedelta):
                 actividad['hora_fin'] = str(actividad['hora_fin'])
-            if isinstance(actividad['horas_trab'], timedelta):
-                actividad['horas_trab'] = str(actividad['horas_trab'])
+            if isinstance(actividad['fecha'], (date, datetime)):
+                actividad['fecha'] = actividad['fecha'].strftime('%Y-%m-%d')
 
-        cursor.close()
-        conn.close()
+            # Convertir los CECOs concatenados en arrays de objetos
+            if actividad['cecos_productivos']:
+                actividad['cecos_productivos'] = [
+                    {'id': int(x.split(':')[0]), 'nombre': x.split(':')[1]} 
+                    for x in actividad['cecos_productivos'].split('|')
+                ]
+            else:
+                actividad['cecos_productivos'] = []
 
+            if actividad['cecos_inversion']:
+                actividad['cecos_inversion'] = [
+                    {'id': int(x.split(':')[0]), 'nombre': x.split(':')[1]} 
+                    for x in actividad['cecos_inversion'].split('|')
+                ]
+            else:
+                actividad['cecos_inversion'] = []
+
+            if actividad['cecos_maquinaria']:
+                actividad['cecos_maquinaria'] = [
+                    {'id': int(x.split(':')[0]), 'nombre': x.split(':')[1]} 
+                    for x in actividad['cecos_maquinaria'].split('|')
+                ]
+            else:
+                actividad['cecos_maquinaria'] = []
+
+            if actividad['cecos_riego']:
+                actividad['cecos_riego'] = [
+                    {'id': int(x.split(':')[0]), 'nombre': x.split(':')[1]} 
+                    for x in actividad['cecos_riego'].split('|')
+                ]
+            else:
+                actividad['cecos_riego'] = []
+
+            if actividad['cecos_administrativos']:
+                actividad['cecos_administrativos'] = [
+                    {'id': int(x.split(':')[0]), 'nombre': x.split(':')[1]} 
+                    for x in actividad['cecos_administrativos'].split('|')
+                ]
+            else:
+                actividad['cecos_administrativos'] = []
+
+        print(f"✅ Actividades encontradas: {len(actividades)}")
         return jsonify(actividades), 200
 
     except Exception as e:
         print(f"❌ Error al obtener actividades: {e}")
         return jsonify({"error": str(e)}), 500
-
-    
 
 # 🚀 Endpoint para crear una nueva actividad
 @actividades_bp.route('/', methods=['POST'])
@@ -175,119 +213,175 @@ def crear_actividad():
         # Obtener sucursal activa del usuario
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-
-        cursor.execute("SELECT sucursal_activa FROM Usuarios WHERE id = %s", (usuario_id,))
+        cursor.execute("SELECT id_sucursalactiva FROM general_dim_usuario WHERE id = %s", (usuario_id,))
         usuario = cursor.fetchone()
-
-        if not usuario or not usuario['sucursal_activa']:
+        if not usuario or not usuario['id_sucursalactiva']:
             cursor.close()
             conn.close()
-            return jsonify({"error": "Sucursal activa no encontrada"}), 400
+            return jsonify({"error": "No se encontró sucursal activa para el usuario"}), 400
+        id_sucursalactiva = usuario['id_sucursalactiva']
 
-        id_sucursal = usuario['sucursal_activa']
-
-        # Extraer otros datos
+        # Si no viene fecha, usar la fecha de hoy
         fecha = data.get('fecha')
-        id_especie = data.get('id_especie')
-        id_variedad = data.get('id_variedad')
-        id_ceco = data.get('id_ceco')
-        id_labor = data.get('id_labor')
-        id_unidad = data.get('id_unidad')
-        id_tipo_trab = data.get('id_tipo_trab')
+        if not fecha or fecha in [None, '']:
+            fecha = date.today().isoformat()
+
+        # Validar campos requeridos según la tabla (excepto fecha, ya la tenemos)
+        campos_requeridos = [
+            'id_tipotrabajador', 'id_tiporendimiento', 'id_labor',
+            'id_unidad', 'id_tipoceco', 'tarifa', 'hora_inicio', 'hora_fin', 'id_estadoactividad'
+        ]
+        for campo in campos_requeridos:
+            if campo not in data or data[campo] in [None, '']:
+                return jsonify({"error": f"El campo {campo} es requerido"}), 400
+
+        # Validar id_contratista solo si id_tipotrabajador es 2
         id_contratista = data.get('id_contratista')
-        id_tipo_rend = data.get('id_tipo_rend')
-        hora_inicio = data.get('hora_inicio')
-        hora_fin = data.get('hora_fin')
-        horas_trab = data.get('horas_trab')
-        estado = data.get('estado', 'creada')
-        tarifa = data.get('tarifa')
-        oc = data.get('OC', "0")
+        if int(data['id_tipotrabajador']) == 2:
+            if not id_contratista:
+                return jsonify({"error": "El campo id_contratista es requerido cuando id_tipotrabajador es 2"}), 400
+        else:
+            id_contratista = None
 
-        # Validación
-        if not all([fecha, id_especie, id_variedad, id_ceco, id_labor, id_unidad,
-                    id_tipo_trab, id_contratista, id_tipo_rend, id_sucursal, horas_trab, tarifa]):
-            cursor.close()
-            conn.close()
-            return jsonify({"error": "Faltan datos obligatorios"}), 400
+        # Generar ID único para la actividad
+        cursor2 = conn.cursor()
+        cursor2.execute("SELECT UUID()")
+        id_actividad = cursor2.fetchone()[0]
 
-        # Insertar actividad
-        cursor = conn.cursor()
-        sql = """
-            INSERT INTO Actividades (
-                id, fecha, id_usuario, id_especie, id_variedad, id_ceco, id_labor, 
-                id_unidad, id_tipo_trab, id_contratista, id_tipo_rend, id_sucursal, 
-                hora_inicio, hora_fin, horas_trab, estado, tarifa, OC
-            ) VALUES (UUID(), %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """
-        valores = (fecha, usuario_id, id_especie, id_variedad, id_ceco, id_labor,
-                   id_unidad, id_tipo_trab, id_contratista, id_tipo_rend, id_sucursal,
-                   hora_inicio, hora_fin, horas_trab, estado, tarifa, oc)
-
-        cursor.execute(sql, valores)
+        # Insertar la actividad
+        cursor2.execute("""
+            INSERT INTO tarja_fact_actividad (
+                id, fecha, id_usuario, id_sucursalactiva, id_tipotrabajador,
+                id_contratista, id_tiporendimiento, id_labor, id_unidad,
+                id_tipoceco, tarifa, hora_inicio, hora_fin, id_estadoactividad
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            id_actividad,
+            fecha,
+            usuario_id,
+            id_sucursalactiva,
+            data['id_tipotrabajador'],
+            id_contratista,
+            data['id_tiporendimiento'],
+            data['id_labor'],
+            data['id_unidad'],
+            data['id_tipoceco'],
+            data['tarifa'],
+            data['hora_inicio'],
+            data['hora_fin'],
+            data['id_estadoactividad']
+        ))
         conn.commit()
-
         cursor.close()
+        cursor2.close()
         conn.close()
 
-        return jsonify({"message": "Actividad creada correctamente"}), 201
+        return jsonify({
+            "success": True,
+            "message": "Actividad creada correctamente",
+            "id_actividad": id_actividad,
+            "id_tipoceco": data['id_tipoceco']
+        }), 201
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
+        print(f"❌ Error al crear actividad: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 # 🚀 Endpoint para editar una actividad existente
 @actividades_bp.route('/<string:actividad_id>', methods=['PUT'])
 @jwt_required()
 def editar_actividad(actividad_id): 
     try:
-        usuario_id = get_jwt_identity()  # Obtener el ID del usuario autenticado
-        data = request.json  # Datos enviados desde el frontend
+        usuario_id = get_jwt_identity()
+        data = request.json
 
-        # Extraer datos a actualizar
+        # Validar campos requeridos según la tabla (excepto fecha, ya la tenemos)
+        campos_requeridos = [
+            'fecha', 'id_tipotrabajador', 'id_tiporendimiento', 'id_labor',
+            'id_unidad', 'id_tipoceco', 'tarifa', 'hora_inicio', 'hora_fin', 'id_estadoactividad'
+        ]
+        for campo in campos_requeridos:
+            if campo not in data or data[campo] in [None, '']:
+                return jsonify({"error": f"El campo {campo} es requerido"}), 400
+
+        # Validar id_contratista solo si id_tipotrabajador es 2
+        id_contratista = data.get('id_contratista')
+        if int(data['id_tipotrabajador']) == 2:
+            if not id_contratista:
+                return jsonify({"error": "El campo id_contratista es requerido cuando id_tipotrabajador es 2"}), 400
+        else:
+            id_contratista = None
+
         fecha = data.get('fecha')
-        id_especie = data.get('id_especie')
-        id_variedad = data.get('id_variedad')
-        id_ceco = data.get('id_ceco')
         id_labor = data.get('id_labor')
         id_unidad = data.get('id_unidad')
-        id_tipo_trab = data.get('id_tipo_trab')
-        id_contratista = data.get('id_contratista')
-        id_tipo_rend = data.get('id_tipo_rend')
+        id_tipotrabajador = data.get('id_tipotrabajador')
+        id_tiporendimiento = data.get('id_tiporendimiento')
         hora_inicio = data.get('hora_inicio')
         hora_fin = data.get('hora_fin')
+        id_estadoactividad = data.get('id_estadoactividad')
         tarifa = data.get('tarifa')
+        id_tipoceco = data.get('id_tipoceco')
 
-        # Conectar a la base de datos
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # ✅ Verificar que la actividad pertenece al usuario autenticado
-        cursor.execute("SELECT id FROM Actividades WHERE id = %s AND id_usuario = %s", (actividad_id, usuario_id))
-        actividad = cursor.fetchone()
-
-        if not actividad:
-            return jsonify({"error": "No tienes permisos para editar esta actividad"}), 403
-
-        # ✅ Actualizar los datos en la base de datos
         sql = """
-            UPDATE Actividades 
-            SET fecha = %s, id_especie = %s, id_variedad = %s, id_ceco = %s, 
-                id_labor = %s, id_unidad = %s, id_tipo_trab = %s, id_contratista = %s, 
-                id_tipo_rend = %s, hora_inicio = %s, hora_fin = %s, tarifa = %s 
-            WHERE id = %s
+            UPDATE tarja_fact_actividad 
+            SET fecha = %s,
+                id_labor = %s,
+                id_unidad = %s,
+                id_tipotrabajador = %s,
+                id_contratista = %s,
+                id_tiporendimiento = %s,
+                hora_inicio = %s,
+                hora_fin = %s,
+                id_estadoactividad = %s,
+                tarifa = %s,
+                id_tipoceco = %s
+            WHERE id = %s AND id_usuario = %s
         """
-        valores = (fecha, id_especie, id_variedad, id_ceco, id_labor, id_unidad, id_tipo_trab,
-                   id_contratista, id_tipo_rend, hora_inicio, hora_fin, tarifa, actividad_id)
+        valores = (fecha, id_labor, id_unidad, id_tipotrabajador,
+                  id_contratista, id_tiporendimiento, hora_inicio,
+                  hora_fin, id_estadoactividad, tarifa, id_tipoceco, actividad_id, usuario_id)
 
         cursor.execute(sql, valores)
         conn.commit()
+
+        if cursor.rowcount == 0:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Actividad no encontrada o no tienes permiso para editarla"}), 404
 
         cursor.close()
         conn.close()
 
         return jsonify({"message": "Actividad actualizada correctamente"}), 200
 
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# 🚀 Endpoint para eliminar una actividad existente
+@actividades_bp.route('/<string:actividad_id>', methods=['DELETE'])
+@jwt_required()
+def eliminar_actividad(actividad_id):
+    try:
+        usuario_id = get_jwt_identity()
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Solo permitir eliminar si la actividad es del usuario
+        cursor.execute("DELETE FROM tarja_fact_actividad WHERE id = %s AND id_usuario = %s", (actividad_id, usuario_id))
+        conn.commit()
+        if cursor.rowcount == 0:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Actividad no encontrada o no tienes permiso para eliminarla"}), 404
+        cursor.close()
+        conn.close()
+        return jsonify({"message": "Actividad eliminada correctamente"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
