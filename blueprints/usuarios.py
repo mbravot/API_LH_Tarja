@@ -219,44 +219,44 @@ def actualizar_sucursal_activa():
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # Verificar que el usuario tenga acceso a la sucursal
+            # Verificar que el usuario tenga acceso a la sucursal
         cursor.execute("""
-            SELECT 1 
-            FROM usuario_pivot_sucursal_usuario 
-            WHERE id_usuario = %s AND id_sucursal = %s
-        """, (usuario_id, nueva_sucursal))
-        
+                SELECT 1 
+                FROM usuario_pivot_sucursal_usuario 
+                WHERE id_usuario = %s AND id_sucursal = %s
+            """, (usuario_id, nueva_sucursal))
+            
         if not cursor.fetchone():
-            cursor.close()
-            conn.close()
-            return jsonify({"error": "No tienes acceso a esta sucursal"}), 403
+                cursor.close()
+                conn.close()
+                return jsonify({"error": "No tienes acceso a esta sucursal"}), 403
 
-        # Actualizar la sucursal activa
+            # Actualizar la sucursal activa
         cursor.execute("""
-            UPDATE general_dim_usuario 
-            SET id_sucursalactiva = %s 
-            WHERE id = %s
-        """, (nueva_sucursal, usuario_id))
-        
+                UPDATE general_dim_usuario 
+                SET id_sucursalactiva = %s 
+                WHERE id = %s
+            """, (nueva_sucursal, usuario_id))
+            
         conn.commit()
 
-        # Obtener el nombre de la sucursal para la respuesta
+            # Obtener el nombre de la sucursal para la respuesta
         cursor.execute("""
-            SELECT nombre 
-            FROM general_dim_sucursal 
-            WHERE id = %s
-        """, (nueva_sucursal,))
-        
+                SELECT nombre 
+                FROM general_dim_sucursal 
+                WHERE id = %s
+            """, (nueva_sucursal,))
+            
         sucursal = cursor.fetchone()
 
         cursor.close()
         conn.close()
 
         return jsonify({
-            "message": "Sucursal actualizada correctamente",
-            "id_sucursal": nueva_sucursal,
-            "sucursal_nombre": sucursal['nombre'] if sucursal else None
-        }), 200
+                "message": "Sucursal actualizada correctamente",
+                "id_sucursal": nueva_sucursal,
+                "sucursal_nombre": sucursal['nombre'] if sucursal else None
+            }), 200
 
     except Exception as e:
         print(f"❌ Error al actualizar sucursal activa: {e}")

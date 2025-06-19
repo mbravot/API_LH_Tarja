@@ -135,9 +135,9 @@ def listar_actividades_sucursal_usuario():
             LEFT JOIN tarja_fact_cecomaquinaria cm ON a.id = cm.id_actividad
             LEFT JOIN tarja_fact_cecoriego cr ON a.id = cr.id_actividad
             LEFT JOIN tarja_fact_cecoadministrativo ca ON a.id = ca.id_actividad
-            WHERE a.id_sucursalactiva = %s AND a.id_estadoactividad = 1 AND a.id_tipotrabajador = 1
+            WHERE a.id_sucursalactiva = %s AND a.id_estadoactividad = 1 AND a.id_tipotrabajador = 1 AND a.id_usuario = %s
             ORDER BY a.fecha DESC
-        """, (id_sucursal,))
+        """, (id_sucursal, usuario_id))
         actividades = cursor.fetchall()
         # Obtener nombre del CECO para cada actividad
         for act in actividades:

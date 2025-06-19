@@ -25,16 +25,16 @@ def listar_permisos():
         if not usuario or not usuario['id_sucursalactiva']:
             return jsonify({"error": "No se encontró la sucursal activa del usuario"}), 400
         id_sucursal = usuario['id_sucursalactiva']
-        # Listar permisos de colaboradores de la sucursal
+        # Listar permisos de colaboradores de la sucursal y del usuario autenticado
         cursor.execute("""
             SELECT p.*, t.nombre AS tipo_permiso, c.nombre AS nombre_colaborador, c.apellido_paterno, c.apellido_materno, e.nombre AS estado_permiso
             FROM tarja_fact_permiso p
             JOIN tarja_dim_permisotipo t ON p.id_tipopermiso = t.id
             JOIN general_dim_colaborador c ON p.id_colaborador = c.id
             JOIN tarja_dim_permisoestado e ON p.id_estadopermiso = e.id
-            WHERE c.id_sucursal = %s
+            WHERE c.id_sucursal = %s AND p.id_usuario = %s
             ORDER BY p.fecha DESC, p.timestamp DESC
-        """, (id_sucursal,))
+        """, (id_sucursal, usuario_id))
         permisos = cursor.fetchall()
         cursor.close()
         conn.close()
