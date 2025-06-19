@@ -71,13 +71,10 @@ def obtener_especies():
         conn.close()
 
         if not especies:
-            print("⚠️ No se encontraron especies")
             return jsonify([]), 200
 
-        print(f"✅ Especies encontradas: {len(especies)}")
         return jsonify(especies), 200
     except Exception as e:
-        print(f"❌ Error al obtener especies: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Obtener variedades filtradas por especie
@@ -101,7 +98,6 @@ def obtener_variedades_filtradas():
         conn.close()
         return jsonify(variedades), 200
     except Exception as e:
-        print(f"❌ Error al obtener variedades: {e}")
         return jsonify({"error": str(e)}), 500
     
     # Obtener cecos
@@ -138,13 +134,10 @@ def obtener_cecos():
         conn.close()
 
         if not cecos:
-            print(f"⚠️ No se encontraron CECOs para sucursal: {id_sucursal}")
             return jsonify([]), 200
 
-        print(f"✅ CECOs encontrados: {len(cecos)}")
         return jsonify(cecos), 200
     except Exception as e:
-        print(f"❌ Error en obtener_cecos: {e}")
         return jsonify({"error": str(e)}), 500
 
      # Obtener tipo trabajador
@@ -167,13 +160,10 @@ def obtener_tipotrabajador():
         conn.close()
 
         if not tipotrabajador:
-            print("⚠️ No se encontraron tipos de trabajador")
             return jsonify([]), 200
 
-        print(f"✅ Tipos de trabajador encontrados: {len(tipotrabajador)}")
         return jsonify(tipotrabajador), 200
     except Exception as e:
-        print(f"❌ Error al obtener tipos de trabajador: {e}")
         return jsonify({"error": str(e)}), 500
     
 # Obtener contratistas según la sucursal activa del usuario logueado
@@ -199,9 +189,8 @@ def obtener_contratistas():
         cursor.execute("""
             SELECT DISTINCT c.id, c.nombre, c.rut, c.codigo_verificador
             FROM general_dim_contratista c
-            INNER JOIN general_pivot_contratista_sucursal p ON c.id = p.id_contratista
-            WHERE p.id_sucursal = %s
-            AND c.id_estado = 1
+            JOIN general_pivot_contratista_sucursal p ON c.id = p.id_contratista
+            WHERE p.id_sucursal = %s AND c.id_estado = 1
             ORDER BY c.nombre ASC
         """, (id_sucursal,))
 
@@ -211,12 +200,11 @@ def obtener_contratistas():
         conn.close()
 
         if not contratistas:
-            print(f"⚠️ No se encontraron contratistas para sucursal: {id_sucursal}")
+            return jsonify([]), 200
 
         return jsonify(contratistas), 200
 
     except Exception as e:
-        print(f"❌ Error al obtener contratistas: {e}")
         return jsonify({"error": str(e)}), 500
     
     # Obtener tipo rendimiento
@@ -239,13 +227,10 @@ def obtener_tiporendimiento():
         conn.close()
         
         if not tiporendimiento:
-            print("⚠️ No se encontraron tipos de rendimiento")
             return jsonify([]), 200
             
-        print(f"✅ Tipos de rendimiento encontrados: {len(tiporendimiento)}")
         return jsonify(tiporendimiento), 200
     except Exception as e:
-        print(f"❌ Error al obtener tipos de rendimiento: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Obtener sucursales del usuario logueado
@@ -254,43 +239,30 @@ def obtener_tiporendimiento():
 def obtener_sucursales():
     if request.method == 'OPTIONS':
         return '', 200
-        
     try:
         usuario_id = get_jwt_identity()
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
-        # Obtener las sucursales a las que tiene acceso el usuario
+        # Obtener sucursales permitidas para el usuario
         cursor.execute("""
-            SELECT s.id, s.nombre
+            SELECT DISTINCT s.id, s.nombre, s.ubicacion
             FROM general_dim_sucursal s
-            JOIN usuario_pivot_sucursal_usuario us ON us.id_sucursal = s.id
-            WHERE us.id_usuario = %s
+            JOIN usuario_pivot_sucursal_usuario p ON s.id = p.id_sucursal
+            WHERE p.id_usuario = %s
             ORDER BY s.nombre ASC
         """, (usuario_id,))
-        
+
         sucursales = cursor.fetchall()
         cursor.close()
         conn.close()
-        
+
         if not sucursales:
-            print("⚠️ No se encontraron sucursales para el usuario")
-            return jsonify({
-                "success": True,
-                "sucursales": []
-            }), 200
-            
-        print(f"✅ Sucursales encontradas: {len(sucursales)}")
-        return jsonify({
-            "success": True,
-            "sucursales": sucursales
-        }), 200
+            return jsonify([]), 200
+
+        return jsonify(sucursales), 200
     except Exception as e:
-        print(f"❌ Error al obtener sucursales: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        return jsonify({"error": str(e)}), 500
 
 # Obtener porcentajes de trabajadores
 @opciones_bp.route('/porcentajes', methods=['GET'])
@@ -308,7 +280,6 @@ def obtener_porcentajes():
 
         return jsonify(porcentajes), 200
     except Exception as e:
-        print(f"❌ Error al obtener porcentajes: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Obtener CECOs administrativos de la sucursal activa del usuario logueado
@@ -341,9 +312,12 @@ def obtener_cecos_administrativos():
         cecos = cursor.fetchall()
         cursor.close()
         conn.close()
+        
+        if not cecos:
+            return jsonify([]), 200
+            
         return jsonify(cecos), 200
     except Exception as e:
-        print(f"❌ Error al obtener CECOs administrativos: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Crear ceco administrativo
@@ -375,7 +349,6 @@ def crear_cecoadministrativo():
         }), 201
 
     except Exception as e:
-        print(f"❌ Error al crear ceco administrativo: {e}")
         return jsonify({
             "success": False,
             "error": str(e)
@@ -394,19 +367,16 @@ def eliminar_cecoadministrativo(id):
         conn.commit()
         
         if cursor.rowcount == 0:
-            print(f"⚠️ No se encontró el CECO administrativo con id {id}")
             cursor.close()
             conn.close()
-            return jsonify({"error": "CECO administrativo no encontrado"}), 404
+            return jsonify({"error": "Ceco administrativo no encontrado"}), 404
             
-        print(f"✅ CECO administrativo {id} eliminado correctamente")
         cursor.close()
         conn.close()
         
-        return jsonify({"message": "CECO administrativo eliminado correctamente"}), 200
+        return jsonify({"message": "Ceco administrativo eliminado correctamente"}), 200
         
     except Exception as e:
-        print(f"❌ Error al eliminar CECO administrativo: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Obtener CECOs de inversión por actividad
@@ -434,13 +404,10 @@ def obtener_cecosinversion(id_actividad):
         conn.close()
         
         if not cecos:
-            print(f"⚠️ No se encontraron CECOs de inversión para la actividad {id_actividad}")
             return jsonify([]), 200
             
-        print(f"✅ CECOs de inversión encontrados: {len(cecos)}")
         return jsonify(cecos), 200
     except Exception as e:
-        print(f"❌ Error al obtener CECOs de inversión: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Crear ceco inversión
@@ -475,7 +442,6 @@ def crear_cecoinversion():
         }), 201
 
     except Exception as e:
-        print(f"❌ Error al crear ceco inversión: {e}")
         return jsonify({
             "success": False,
             "error": str(e)
@@ -494,19 +460,16 @@ def eliminar_cecoinversion(id):
         conn.commit()
         
         if cursor.rowcount == 0:
-            print(f"⚠️ No se encontró el CECO de inversión con id {id}")
             cursor.close()
             conn.close()
-            return jsonify({"error": "CECO de inversión no encontrado"}), 404
-            
-        print(f"✅ CECO de inversión {id} eliminado correctamente")
+            return jsonify({"error": "Ceco inversión no encontrado"}), 404
+
+        conn.commit()
         cursor.close()
         conn.close()
-        
-        return jsonify({"message": "CECO de inversión eliminado correctamente"}), 200
-        
+
+        return jsonify({"message": "Ceco inversión eliminado correctamente"}), 200
     except Exception as e:
-        print(f"❌ Error al eliminar CECO de inversión: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Obtener CECOs de maquinaria por actividad
@@ -534,13 +497,10 @@ def obtener_cecosmaquinaria(id_actividad):
         conn.close()
         
         if not cecos:
-            print(f"⚠️ No se encontraron CECOs de maquinaria para la actividad {id_actividad}")
             return jsonify([]), 200
             
-        print(f"✅ CECOs de maquinaria encontrados: {len(cecos)}")
         return jsonify(cecos), 200
     except Exception as e:
-        print(f"❌ Error al obtener CECOs de maquinaria: {e}")
         return jsonify({"error": str(e)}), 500
     
 # Crear ceco maquinaria
@@ -575,7 +535,6 @@ def crear_cecomaquinaria():
         }), 201
 
     except Exception as e:
-        print(f"❌ Error al crear ceco maquinaria: {e}")
         return jsonify({
             "success": False,
             "error": str(e)
@@ -594,19 +553,16 @@ def eliminar_cecomaquinaria(id):
         conn.commit()
         
         if cursor.rowcount == 0:
-            print(f"⚠️ No se encontró el CECO de maquinaria con id {id}")
             cursor.close()
             conn.close()
-            return jsonify({"error": "CECO de maquinaria no encontrado"}), 404
-            
-        print(f"✅ CECO de maquinaria {id} eliminado correctamente")
+            return jsonify({"error": "Ceco maquinaria no encontrado"}), 404
+
+        conn.commit()
         cursor.close()
         conn.close()
-        
-        return jsonify({"message": "CECO de maquinaria eliminado correctamente"}), 200
-        
+
+        return jsonify({"message": "Ceco maquinaria eliminado correctamente"}), 200
     except Exception as e:
-        print(f"❌ Error al eliminar CECO de maquinaria: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Obtener CECOs productivos por actividad
@@ -636,13 +592,10 @@ def obtener_cecosproductivos(id_actividad):
         conn.close()
         
         if not cecos:
-            print(f"⚠️ No se encontraron CECOs productivos para la actividad {id_actividad}")
             return jsonify([]), 200
             
-        print(f"✅ CECOs productivos encontrados: {len(cecos)}")
         return jsonify(cecos), 200
     except Exception as e:
-        print(f"❌ Error al obtener CECOs productivos: {e}")
         return jsonify({"error": str(e)}), 500
     
 # Crear ceco productivo
@@ -678,7 +631,6 @@ def crear_cecoproductivo():
         }), 201
 
     except Exception as e:
-        print(f"❌ Error al crear ceco productivo: {e}")
         return jsonify({
             "success": False,
             "error": str(e)
@@ -697,19 +649,16 @@ def eliminar_cecoproductivo(id):
         conn.commit()
         
         if cursor.rowcount == 0:
-            print(f"⚠️ No se encontró el CECO productivo con id {id}")
             cursor.close()
             conn.close()
-            return jsonify({"error": "CECO productivo no encontrado"}), 404
-            
-        print(f"✅ CECO productivo {id} eliminado correctamente")
+            return jsonify({"error": "Ceco productivo no encontrado"}), 404
+
+        conn.commit()
         cursor.close()
         conn.close()
-        
-        return jsonify({"message": "CECO productivo eliminado correctamente"}), 200
-        
+
+        return jsonify({"message": "Ceco productivo eliminado correctamente"}), 200
     except Exception as e:
-        print(f"❌ Error al eliminar CECO productivo: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Obtener CECOs de riego por actividad
@@ -739,13 +688,10 @@ def obtener_cecosriego(id_actividad):
         conn.close()
         
         if not cecos:
-            print(f"⚠️ No se encontraron CECOs de riego para la actividad {id_actividad}")
             return jsonify([]), 200
             
-        print(f"✅ CECOs de riego encontrados: {len(cecos)}")
         return jsonify(cecos), 200
     except Exception as e:
-        print(f"❌ Error al obtener CECOs de riego: {e}")
         return jsonify({"error": str(e)}), 500
     
 # Crear ceco riego
@@ -781,7 +727,6 @@ def crear_cecoriego():
         }), 201
 
     except Exception as e:
-        print(f"❌ Error al crear ceco riego: {e}")
         return jsonify({
             "success": False,
             "error": str(e)
@@ -800,19 +745,16 @@ def eliminar_cecoriego(id):
         conn.commit()
         
         if cursor.rowcount == 0:
-            print(f"⚠️ No se encontró el CECO de riego con id {id}")
             cursor.close()
             conn.close()
-            return jsonify({"error": "CECO de riego no encontrado"}), 404
-            
-        print(f"✅ CECO de riego {id} eliminado correctamente")
+            return jsonify({"error": "Ceco riego no encontrado"}), 404
+
+        conn.commit()
         cursor.close()
         conn.close()
-        
-        return jsonify({"message": "CECO de riego eliminado correctamente"}), 200
-        
+
+        return jsonify({"message": "Ceco riego eliminado correctamente"}), 200
     except Exception as e:
-        print(f"❌ Error al eliminar CECO de riego: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Endpoint de prueba
@@ -877,7 +819,6 @@ def obtener_cecos_productivos():
         conn.close()
         return jsonify(cecos), 200
     except Exception as e:
-        print(f"❌ Error al obtener CECOs productivos: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Obtener CECOs de maquinaria de la sucursal activa del usuario logueado
@@ -906,7 +847,6 @@ def obtener_cecos_maquinaria():
         conn.close()
         return jsonify(cecos), 200
     except Exception as e:
-        print(f"❌ Error al obtener CECOs de maquinaria: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Obtener CECOs de inversión de la sucursal activa del usuario logueado
@@ -935,7 +875,6 @@ def obtener_cecos_inversion():
         conn.close()
         return jsonify(cecos), 200
     except Exception as e:
-        print(f"❌ Error al obtener CECOs de inversión: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Obtener CECOs de riego de la sucursal activa del usuario logueado
@@ -964,7 +903,6 @@ def obtener_cecos_riego():
         conn.close()
         return jsonify(cecos), 200
     except Exception as e:
-        print(f"❌ Error al obtener CECOs de riego: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Obtener cuarteles filtrados por variedad y sucursal de la actividad
@@ -1009,7 +947,6 @@ def obtener_cuarteles_por_actividad(id_actividad):
         conn.close()
         return jsonify(cuarteles), 200
     except Exception as e:
-        print(f"❌ Error al obtener cuarteles por actividad: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Obtener tipos de inversión disponibles para la sucursal de la actividad
@@ -1194,6 +1131,47 @@ def obtener_unidades():
         cursor.close()
         conn.close()
         return jsonify(unidades), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Obtener unidad por defecto de una labor específica
+@opciones_bp.route('/labor/<string:id_labor>/unidad-default', methods=['GET'])
+@jwt_required()
+def obtener_unidad_default_labor(id_labor):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Obtener la unidad por defecto de la labor
+        cursor.execute("""
+            SELECT l.id_unidadpordefecto, u.id, u.nombre
+            FROM general_dim_labor l
+            LEFT JOIN tarja_dim_unidad u ON l.id_unidadpordefecto = u.id
+            WHERE l.id = %s
+        """, (id_labor,))
+        
+        resultado = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if not resultado:
+            return jsonify({"error": "Labor no encontrada"}), 404
+        
+        # Si la labor no tiene unidad por defecto, devolver null
+        if not resultado['id_unidadpordefecto']:
+            return jsonify({
+                "id_unidad_default": None,
+                "unidad_default": None
+            }), 200
+        
+        return jsonify({
+            "id_unidad_default": resultado['id'],
+            "unidad_default": {
+                "id": resultado['id'],
+                "nombre": resultado['nombre']
+            }
+        }), 200
+        
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

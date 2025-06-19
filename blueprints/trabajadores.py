@@ -49,7 +49,6 @@ def obtener_trabajadores():
         return jsonify(trabajadores), 200
 
     except Exception as e:
-        print(f"❌ Error en obtener trabajadores: {e}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -110,7 +109,6 @@ def crear_trabajador():
         conn.close()
         return jsonify({"message": "Trabajador creado correctamente", "id": trabajador_id}), 201
     except Exception as e:
-        print(f"❌ Error al crear trabajador: {e}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -168,7 +166,6 @@ def editar_trabajador(trabajador_id):
         conn.close()
         return jsonify({"message": "Trabajador actualizado correctamente"}), 200
     except Exception as e:
-        print(f"❌ Error al editar trabajador: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Obtener un trabajador por su ID
@@ -192,5 +189,4 @@ def obtener_trabajador_por_id(trabajador_id):
             return jsonify({"error": "Trabajador no encontrado"}), 404
         return jsonify(trabajador), 200
     except Exception as e:
-        print(f"❌ Error al obtener trabajador: {e}")
         return jsonify({"error": str(e)}), 500

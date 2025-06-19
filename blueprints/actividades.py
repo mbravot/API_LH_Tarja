@@ -65,7 +65,6 @@ def obtener_actividades_por_sucursal(id_sucursal):
         return jsonify(actividades), 200
 
     except Exception as e:
-        print(f"❌ Error al obtener actividades por sucursal: {e}")
         return jsonify({"error": str(e)}), 500
 
 # 🚀 Endpoint para obtener todas las actividades  
@@ -142,7 +141,6 @@ def obtener_actividades():
         conn.close()
 
         if not actividades:
-            print(f"⚠️ No se encontraron actividades para el usuario {usuario_id}")
             return jsonify([]), 200
 
         # Convertir timedelta a string para hora_inicio y hora_fin
@@ -195,11 +193,9 @@ def obtener_actividades():
             else:
                 actividad['cecos_administrativos'] = []
 
-        print(f"✅ Actividades encontradas: {len(actividades)}")
         return jsonify(actividades), 200
 
     except Exception as e:
-        print(f"❌ Error al obtener actividades: {e}")
         return jsonify({"error": str(e)}), 500
 
 # 🚀 Endpoint para crear una nueva actividad
@@ -284,11 +280,7 @@ def crear_actividad():
         }), 201
 
     except Exception as e:
-        print(f"❌ Error al crear actividad: {e}")
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
+        return jsonify({"error": str(e)}), 500
 
 # 🚀 Endpoint para editar una actividad existente
 @actividades_bp.route('/<string:actividad_id>', methods=['PUT'])

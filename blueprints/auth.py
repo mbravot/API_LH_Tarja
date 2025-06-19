@@ -101,7 +101,6 @@ def login():
         }), 200
 
     except Exception as e:
-        print(f"❌ Error en login: {e}")
         return jsonify({"error": str(e)}), 500
 
 @auth_bp.route('/refresh', methods=['POST'])
@@ -156,7 +155,6 @@ def refresh():
         }), 200
 
     except Exception as e:
-        print(f"❌ Error en refresh: {e}")
         return jsonify({"error": str(e)}), 500
 
 @auth_bp.route('/cambiar-clave', methods=['POST'])
@@ -198,7 +196,6 @@ def cambiar_clave():
         return jsonify({"message": "Clave actualizada correctamente"}), 200
 
     except Exception as e:
-        print(f"❌ Error en cambiar_clave: {e}")
         return jsonify({"error": str(e)}), 500
 
 @auth_bp.route('/cambiar-sucursal', methods=['POST'])
@@ -255,5 +252,4 @@ def cambiar_sucursal():
         }), 200
 
     except Exception as e:
-        print(f"❌ Error al cambiar sucursal: {e}")
         return jsonify({"error": str(e)}), 500

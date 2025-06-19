@@ -1,1 +1,1 @@
-print("Cargando paquete blueprints")
+# Este archivo permite que el directorio blueprints sea un paquete de Python

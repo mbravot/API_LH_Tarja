@@ -442,7 +442,6 @@ def obtener_rendimientos_individuales_propios():
         return jsonify(rendimientos), 200
 
     except Exception as e:
-        print(f"❌ Error en obtener_rendimientos_individuales_propios: {e}")
         return jsonify({"error": str(e)}), 500
 
 # 📌 Obtener rendimientos individuales de contratistas
@@ -493,7 +492,6 @@ def obtener_rendimientos_individuales_contratistas():
         return jsonify(rendimientos), 200
 
     except Exception as e:
-        print(f"❌ Error en obtener_rendimientos_individuales_contratistas: {e}")
         return jsonify({"error": str(e)}), 500
 
 # 🚀 Endpoint para crear rendimientos individuales propios
@@ -692,112 +690,69 @@ def eliminar_rendimiento_individual_contratista(rendimiento_id):
 @rendimientos_bp.route('/<string:rendimiento_id>', methods=['GET'])
 @jwt_required()
 def obtener_rendimiento(rendimiento_id):
-    conn = None
-    cursor = None
     try:
         usuario_id = get_jwt_identity()
-        print(f"🔍 Buscando rendimiento {rendimiento_id} para usuario {usuario_id}")
-        
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-
+        
         # Obtener la sucursal activa del usuario
         cursor.execute("SELECT id_sucursalactiva FROM general_dim_usuario WHERE id = %s", (usuario_id,))
         usuario = cursor.fetchone()
-
-        if not usuario or usuario['id_sucursalactiva'] is None:
-            print(f"❌ No se encontró sucursal activa para usuario {usuario_id}")
+        
+        if not usuario or not usuario['id_sucursalactiva']:
+            cursor.close()
+            conn.close()
             return jsonify({"error": "No se encontró la sucursal activa del usuario"}), 400
-
+        
         id_sucursal = usuario['id_sucursalactiva']
-        print(f"📍 Sucursal activa: {id_sucursal}")
-
-        # Intentar obtener rendimiento propio
-        print("🔍 Buscando en rendimientos propios...")
+        
+        # Buscar el rendimiento en las diferentes tablas
+        # 1. Buscar en rendimientos propios
         cursor.execute("""
-            SELECT 
-                r.id,
-                r.id_actividad,
-                r.id_colaborador,
-                r.rendimiento,
-                r.horas_trabajadas,
-                r.horas_extras,
-                r.id_bono,
-                a.nombre as nombre_actividad,
-                c.nombre as nombre_colaborador,
-                b.nombre as nombre_bono,
-                'propio' as tipo_rendimiento
+            SELECT r.*, 'propio' as tipo
             FROM tarja_fact_rendimientopropio r
             JOIN tarja_fact_actividad a ON r.id_actividad = a.id
-            JOIN general_dim_colaborador c ON r.id_colaborador = c.id
-            JOIN general_dim_bono b ON r.id_bono = b.id
-            WHERE r.id = %s AND a.id_sucursal = %s
+            WHERE r.id = %s AND a.id_sucursalactiva = %s
         """, (rendimiento_id, id_sucursal))
-        rendimiento_propio = cursor.fetchone()
-
-        if rendimiento_propio:
-            print("✅ Rendimiento propio encontrado")
-            return jsonify(rendimiento_propio), 200
-
-        # Si no es rendimiento propio, intentar obtener rendimiento de contratista
-        print("🔍 Buscando en rendimientos de contratistas...")
+        rendimiento = cursor.fetchone()
+        
+        if rendimiento:
+            cursor.close()
+            conn.close()
+            return jsonify(rendimiento), 200
+        
+        # 2. Buscar en rendimientos de contratistas
         cursor.execute("""
-            SELECT 
-                r.id,
-                r.id_actividad,
-                r.id_trabajador,
-                r.rendimiento,
-                r.id_porcentaje_individual,
-                a.nombre as nombre_actividad,
-                t.nombre as nombre_trabajador,
-                p.porcentaje,
-                'contratista' as tipo_rendimiento
+            SELECT r.*, 'contratista' as tipo
             FROM tarja_fact_rendimientocontratista r
             JOIN tarja_fact_actividad a ON r.id_actividad = a.id
-            JOIN general_dim_trabajador t ON r.id_trabajador = t.id
-            JOIN general_dim_porcentajecontratista p ON r.id_porcentaje_individual = p.id
-            WHERE r.id = %s AND a.id_sucursal = %s
+            WHERE r.id = %s AND a.id_sucursalactiva = %s
         """, (rendimiento_id, id_sucursal))
-        rendimiento_contratista = cursor.fetchone()
-
-        if rendimiento_contratista:
-            print("✅ Rendimiento de contratista encontrado")
-            return jsonify(rendimiento_contratista), 200
-
-        # Si no es rendimiento individual, intentar obtener rendimiento grupal
-        print("🔍 Buscando en rendimientos grupales...")
-        cursor.execute("""
-            SELECT 
-                r.id,
-                r.id_actividad,
-                r.rendimiento,
-                r.id_porcentaje_grupal,
-                a.nombre as nombre_actividad,
-                p.porcentaje,
-                'grupal' as tipo_rendimiento
-            FROM tarja_fact_rendimientogrupal r
-            JOIN tarja_fact_actividad a ON r.id_actividad = a.id
-            JOIN general_dim_porcentajecontratista p ON r.id_porcentaje_grupal = p.id
-            WHERE r.id = %s AND a.id_sucursal = %s
-        """, (rendimiento_id, id_sucursal))
-        rendimiento_grupal = cursor.fetchone()
-
-        if rendimiento_grupal:
-            print("✅ Rendimiento grupal encontrado")
-            return jsonify(rendimiento_grupal), 200
-        else:
-            print("❌ Rendimiento no encontrado")
-            return jsonify({"error": "Rendimiento no encontrado"}), 404
-
-    except Exception as e:
-        print(f"❌ Error en obtener_rendimiento: {str(e)}")
-        print(f"Tipo de error: {type(e).__name__}")
-        import traceback
-        print(f"Traceback: {traceback.format_exc()}")
-        return jsonify({"error": str(e)}), 500
-    finally:
-        if cursor:
+        rendimiento = cursor.fetchone()
+        
+        if rendimiento:
             cursor.close()
-        if conn:
             conn.close()
+            return jsonify(rendimiento), 200
+        
+        # 3. Buscar en rendimientos grupales
+        cursor.execute("""
+            SELECT r.*, 'grupal' as tipo
+            FROM tarja_fact_redimientogrupal r
+            JOIN tarja_fact_actividad a ON r.id_actividad = a.id
+            WHERE r.id = %s AND a.id_sucursalactiva = %s
+        """, (rendimiento_id, id_sucursal))
+        rendimiento = cursor.fetchone()
+        
+        if rendimiento:
+            cursor.close()
+            conn.close()
+            return jsonify(rendimiento), 200
+        
+        cursor.close()
+        conn.close()
+        return jsonify({"error": "Rendimiento no encontrado"}), 404
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 

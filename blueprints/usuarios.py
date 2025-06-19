@@ -52,7 +52,6 @@ def crear_usuario():
         return jsonify({"error": "No autorizado"}), 403
 
     data = request.json
-    print(f"🔧 Creando usuario con datos: {data}")
     
     usuario = data.get('usuario')
     correo = data.get('correo')
@@ -110,8 +109,6 @@ def crear_usuario():
         id_rol = 3     # Usuario común por defecto
         id_perfil = 1  # Perfil 1 por defecto
 
-        print(f"🔧 Insertando usuario: {usuario}, correo: {correo}, sucursal: {id_sucursalactiva}")
-
         # Generar UUID para el usuario
         usuario_id = str(uuid.uuid4())
 
@@ -136,8 +133,6 @@ def crear_usuario():
         cursor.close()
         conn.close()
         
-        print(f"✅ Usuario creado exitosamente: {usuario}")
-        
         return jsonify({
             "message": "Usuario creado correctamente",
             "id": usuario_id,
@@ -148,7 +143,6 @@ def crear_usuario():
         }), 201
         
     except Exception as e:
-        print(f"❌ Error al crear usuario: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 # Editar usuarios
@@ -160,7 +154,6 @@ def editar_usuario(usuario_id):
         return jsonify({"error": "No autorizado"}), 403
 
     data = request.json
-    print(f"🔧 Editando usuario {usuario_id} con datos: {data}")
     
     usuario_nombre = data.get('usuario')
     correo = data.get('correo')
@@ -227,7 +220,6 @@ def editar_usuario(usuario_id):
 
         # Preparar la actualización
         if clave:  # Solo si se envió una nueva clave
-            print(f"🔑 Actualizando con nueva clave")
             salt = bcrypt.gensalt()
             clave_encriptada = bcrypt.hashpw(clave.encode('utf-8'), salt).decode('utf-8')
             sql = """
@@ -237,20 +229,15 @@ def editar_usuario(usuario_id):
             """
             valores = (usuario_nombre, correo, clave_encriptada, id_sucursalactiva, id_colaborador, id_estado, usuario_id)
         else:
-            print(f"📝 Actualizando sin cambiar clave")
             sql = """
                 UPDATE general_dim_usuario 
                 SET usuario = %s, correo = %s, id_sucursalactiva = %s, id_colaborador = %s, id_estado = %s
                 WHERE id = %s
             """
             valores = (usuario_nombre, correo, id_sucursalactiva, id_colaborador, id_estado, usuario_id)
-
-        print(f"🔧 SQL: {sql}")
-        print(f"🔧 Valores: {valores}")
         
         cursor.execute(sql, valores)
         filas_afectadas = cursor.rowcount
-        print(f"🔧 Filas afectadas: {filas_afectadas}")
         
         conn.commit()
         cursor.close()
@@ -267,7 +254,6 @@ def editar_usuario(usuario_id):
         }), 200
         
     except Exception as e:
-        print(f"❌ Error al editar usuario: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 #Eliminar usuario
@@ -303,8 +289,6 @@ def obtener_sucursal_usuario():
     try:
         usuario_id = get_jwt_identity()
 
-        print(f"🔍 Buscando sucursal para usuario ID: {usuario_id}")
-
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
@@ -315,14 +299,10 @@ def obtener_sucursal_usuario():
         conn.close()
 
         if not usuario or not usuario['id_sucursalactiva']:
-            print("❌ Usuario no encontrado o sin sucursal asignada")
             return jsonify({"error": "Usuario no encontrado o sin sucursal asignada"}), 404
-
-        print(f"✅ Sucursal encontrada: {usuario['id_sucursalactiva']}")
 
         return jsonify({"id_sucursal": usuario['id_sucursalactiva']}), 200
     except Exception as e:
-        print(f"❌ Error al obtener sucursal: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @usuarios_bp.route('/sucursal-activa', methods=['POST'])
@@ -379,7 +359,6 @@ def actualizar_sucursal_activa():
             }), 200
 
     except Exception as e:
-        print(f"❌ Error al actualizar sucursal activa: {e}")
         return jsonify({"error": str(e)}), 500
 
 # 🔹 Obtener sucursal activa del usuario logueado
@@ -404,7 +383,6 @@ def obtener_sucursal_activa():
         return jsonify({"sucursal_activa": usuario['id_sucursalactiva']}), 200
 
     except Exception as e:
-        print(f"❌ Error al obtener sucursal activa: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Obtener colaboradores según la sucursal activa del usuario logueado o por parámetro
@@ -460,10 +438,8 @@ def obtener_sucursales():
         cursor.close()
         conn.close()
         
-        print(f"✅ Sucursales encontradas: {len(sucursales)}")
         return jsonify(sucursales), 200
     except Exception as e:
-        print(f"❌ Error en obtener_sucursales: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 # Obtener sucursales permitidas de un usuario
@@ -493,7 +469,6 @@ def obtener_sucursales_permitidas(usuario_id):
         
         return jsonify(sucursales_permitidas), 200
     except Exception as e:
-        print(f"❌ Error al obtener sucursales permitidas: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 # Asignar sucursales permitidas a un usuario
@@ -558,7 +533,6 @@ def asignar_sucursales_permitidas(usuario_id):
         }), 200
         
     except Exception as e:
-        print(f"❌ Error al asignar sucursales permitidas: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 # Eliminar todas las sucursales permitidas de un usuario
@@ -596,7 +570,6 @@ def eliminar_sucursales_permitidas(usuario_id):
         }), 200
         
     except Exception as e:
-        print(f"❌ Error al eliminar sucursales permitidas: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 # Obtener todas las aplicaciones disponibles
@@ -623,7 +596,6 @@ def obtener_apps():
         
         return jsonify(apps), 200
     except Exception as e:
-        print(f"❌ Error en obtener_apps: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 # Obtener aplicaciones permitidas de un usuario
@@ -653,7 +625,6 @@ def obtener_apps_permitidas(usuario_id):
         
         return jsonify(apps_permitidas), 200
     except Exception as e:
-        print(f"❌ Error al obtener apps permitidas: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 # Asignar aplicaciones permitidas a un usuario
@@ -720,7 +691,6 @@ def asignar_apps_permitidas(usuario_id):
         }), 200
         
     except Exception as e:
-        print(f"❌ Error al asignar apps permitidas: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 # Eliminar todas las aplicaciones permitidas de un usuario
@@ -758,5 +728,4 @@ def eliminar_apps_permitidas(usuario_id):
         }), 200
         
     except Exception as e:
-        print(f"❌ Error al eliminar apps permitidas: {str(e)}")
         return jsonify({"error": str(e)}), 500

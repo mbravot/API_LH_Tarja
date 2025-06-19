@@ -39,7 +39,6 @@ def obtener_contratistas():
         conn.close()
         return jsonify(contratistas), 200
     except Exception as e:
-        print(f"❌ Error en obtener contratistas: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Crear contratista
@@ -96,7 +95,6 @@ def crear_contratista():
         conn.close()
         return jsonify({"message": "Contratista creado correctamente", "id": contratista_id}), 201
     except Exception as e:
-        print(f"❌ Error al crear contratista: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Editar contratista
@@ -147,7 +145,6 @@ def editar_contratista(contratista_id):
         conn.close()
         return jsonify({"message": "Contratista actualizado correctamente"}), 200
     except Exception as e:
-        print(f"❌ Error al editar contratista: {e}")
         return jsonify({"error": str(e)}), 500
 
 # Obtener un contratista por su ID
@@ -170,5 +167,4 @@ def obtener_contratista_por_id(contratista_id):
             return jsonify({"error": "Contratista no encontrado"}), 404
         return jsonify(contratista), 200
     except Exception as e:
-        print(f"❌ Error al obtener contratista: {e}")
         return jsonify({"error": str(e)}), 500
