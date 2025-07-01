@@ -104,7 +104,7 @@ def login():
         return jsonify({"error": str(e)}), 500
 
 @auth_bp.route('/refresh', methods=['POST'])
-@jwt_required()
+@jwt_required(refresh=True)
 def refresh():
     try:
         usuario_id = get_jwt_identity()
