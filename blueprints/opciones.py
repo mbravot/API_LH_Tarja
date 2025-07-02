@@ -661,102 +661,6 @@ def eliminar_cecoproductivo(id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# Obtener CECOs de riego por actividad
-@opciones_bp.route('/cecosriego/<string:id_actividad>', methods=['GET'])
-@jwt_required()
-def obtener_cecosriego(id_actividad):
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor(dictionary=True)
-        
-        # Obtener CECOs de riego de la actividad
-        cursor.execute("""
-            SELECT cr.id, cr.id_actividad, cr.id_caseta, cr.id_equiporiego, cr.id_sectorriego, cr.id_ceco,
-                   c.nombre as nombre_ceco, ca.nombre as nombre_caseta, 
-                   e.nombre as nombre_equipo, s.nombre as nombre_sector
-            FROM tarja_fact_cecoriego cr
-            JOIN general_dim_ceco c ON cr.id_ceco = c.id
-            JOIN riego_dim_caseta ca ON cr.id_caseta = ca.id
-            JOIN riego_dim_equipo e ON cr.id_equiporiego = e.id
-            JOIN riego_dim_sector s ON cr.id_sectorriego = s.id
-            WHERE cr.id_actividad = %s
-            ORDER BY c.nombre ASC
-        """, (id_actividad,))
-        
-        cecos = cursor.fetchall()
-        cursor.close()
-        conn.close()
-        
-        if not cecos:
-            return jsonify([]), 200
-            
-        return jsonify(cecos), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-    
-# Crear ceco riego
-@opciones_bp.route('/cecosriego', methods=['POST'])
-@jwt_required()
-def crear_cecoriego():
-    try:
-        data = request.json
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
-        # Insertar ceco riego (sin el campo id)
-        cursor.execute("""
-            INSERT INTO tarja_fact_cecoriego (
-                id_actividad, id_caseta, id_equiporiego,
-                id_sectorriego, id_ceco
-            ) VALUES (%s, %s, %s, %s, %s)
-        """, (
-            data['id_actividad'],
-            data['id_caseta'],
-            data['id_equiporiego'],
-            data['id_sectorriego'],
-            data['id_ceco']
-        ))
-
-        conn.commit()
-        cursor.close()
-        conn.close()
-
-        return jsonify({
-            "success": True,
-            "message": "Ceco riego creado correctamente"
-        }), 201
-
-    except Exception as e:
-        return jsonify({
-            "success": False,
-            "error": str(e)
-        }), 500
-
-# Eliminar CECO de riego
-@opciones_bp.route('/cecosriego/<string:id>', methods=['DELETE'])
-@jwt_required()
-def eliminar_cecoriego(id):
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Eliminar CECO de riego
-        cursor.execute("DELETE FROM tarja_fact_cecoriego WHERE id = %s", (id,))
-        conn.commit()
-        
-        if cursor.rowcount == 0:
-            cursor.close()
-            conn.close()
-            return jsonify({"error": "Ceco riego no encontrado"}), 404
-
-        conn.commit()
-        cursor.close()
-        conn.close()
-
-        return jsonify({"message": "Ceco riego eliminado correctamente"}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
 # Endpoint de prueba
 @opciones_bp.route('/test', methods=['GET'])
 def test():
@@ -1345,5 +1249,253 @@ def obtener_cecosproductivo_por_actividad(id_actividad, id_especie, id_variedad,
         cursor.close()
         conn.close()
         return jsonify(cecos), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Obtener casetas disponibles para la sucursal de la actividad
+@opciones_bp.route('/casetas/actividad/<string:id_actividad>', methods=['GET'])
+@jwt_required()
+def obtener_casetas_por_actividad(id_actividad):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        # Obtener la sucursal de la actividad
+        cursor.execute("SELECT id_sucursalactiva FROM tarja_fact_actividad WHERE id = %s", (id_actividad,))
+        actividad = cursor.fetchone()
+        if not actividad or not actividad['id_sucursalactiva']:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "No se encontró la sucursal de la actividad"}), 400
+        id_sucursal = actividad['id_sucursalactiva']
+        # Casetas de la sucursal
+        cursor.execute("""
+            SELECT id, nombre, ubicacion
+            FROM riego_dim_caseta
+            WHERE id_sucursal = %s
+            ORDER BY nombre ASC
+        """, (id_sucursal,))
+        casetas = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        return jsonify(casetas), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Obtener equipos de riego disponibles para la sucursal de la actividad y caseta
+@opciones_bp.route('/equiposriego/actividad/<string:id_actividad>/<string:id_caseta>', methods=['GET'])
+@jwt_required()
+def obtener_equiposriego_por_actividad_y_caseta(id_actividad, id_caseta):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        # Obtener la sucursal de la actividad
+        cursor.execute("SELECT id_sucursalactiva FROM tarja_fact_actividad WHERE id = %s", (id_actividad,))
+        actividad = cursor.fetchone()
+        if not actividad or not actividad['id_sucursalactiva']:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "No se encontró la sucursal de la actividad"}), 400
+        id_sucursal = actividad['id_sucursalactiva']
+        # Equipos de riego de la caseta
+        cursor.execute("""
+            SELECT e.id, e.nombre
+            FROM riego_dim_equipo e
+            JOIN riego_dim_caseta c ON e.id_caseta = c.id
+            WHERE c.id = %s AND c.id_sucursal = %s
+            ORDER BY e.nombre ASC
+        """, (id_caseta, id_sucursal))
+        equipos = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        return jsonify(equipos), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Obtener sectores de riego disponibles para la sucursal de la actividad y equipo
+@opciones_bp.route('/sectoresriego/actividad/<string:id_actividad>/<string:id_equipo>', methods=['GET'])
+@jwt_required()
+def obtener_sectoresriego_por_actividad_y_equipo(id_actividad, id_equipo):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        # Obtener la sucursal de la actividad
+        cursor.execute("SELECT id_sucursalactiva FROM tarja_fact_actividad WHERE id = %s", (id_actividad,))
+        actividad = cursor.fetchone()
+        if not actividad or not actividad['id_sucursalactiva']:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "No se encontró la sucursal de la actividad"}), 400
+        id_sucursal = actividad['id_sucursalactiva']
+        # Sectores de riego del equipo
+        cursor.execute("""
+            SELECT s.id, s.nombre
+            FROM riego_dim_sector s
+            JOIN riego_dim_equipo e ON s.id_equipo = e.id
+            JOIN riego_dim_caseta c ON e.id_caseta = c.id
+            WHERE e.id = %s AND c.id_sucursal = %s
+            ORDER BY s.nombre ASC
+        """, (id_equipo, id_sucursal))
+        sectores = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        return jsonify(sectores), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Obtener CECOs disponibles para la sucursal de la actividad, caseta, equipo y sector
+@opciones_bp.route('/cecosriego/actividad/<string:id_actividad>/<string:id_caseta>/<string:id_equipo>/<string:id_sector>', methods=['GET'])
+@jwt_required()
+def obtener_cecosriego_por_actividad(id_actividad, id_caseta, id_equipo, id_sector):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        # Obtener el CECO asociado al sector seleccionado
+        cursor.execute("""
+            SELECT c.id, c.nombre
+            FROM general_dim_ceco c
+            JOIN riego_dim_sector s ON s.id_ceco = c.id
+            WHERE s.id = %s
+        """, (id_sector,))
+        ceco = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if not ceco:
+            return jsonify({"error": "No se encontró el CECO asociado al sector"}), 404
+            
+        return jsonify(ceco), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Obtener todas las opciones de riego para una actividad
+@opciones_bp.route('/cecos/riego/actividad/<string:id_actividad>', methods=['GET', 'OPTIONS'])
+@jwt_required()
+def obtener_opciones_riego_por_actividad(id_actividad):
+    if request.method == 'OPTIONS':
+        return '', 200
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Obtener la sucursal de la actividad
+        cursor.execute("SELECT id_sucursalactiva FROM tarja_fact_actividad WHERE id = %s", (id_actividad,))
+        actividad = cursor.fetchone()
+        if not actividad or not actividad['id_sucursalactiva']:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "No se encontró la sucursal de la actividad"}), 400
+        
+        id_sucursal = actividad['id_sucursalactiva']
+        
+        # Obtener casetas de la sucursal (devuelve solo la lista de casetas)
+        cursor.execute("""
+            SELECT id, nombre, ubicacion
+            FROM riego_dim_caseta
+            WHERE id_sucursal = %s
+            ORDER BY nombre ASC
+        """, (id_sucursal,))
+        casetas = cursor.fetchall()
+        
+        cursor.close()
+        conn.close()
+        
+        return jsonify(casetas), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# Obtener CECOs de riego por actividad
+@opciones_bp.route('/cecosriego/<string:id_actividad>', methods=['GET'])
+@jwt_required()
+def obtener_cecosriego(id_actividad):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Obtener CECOs de riego de la actividad
+        cursor.execute("""
+            SELECT cr.id, cr.id_actividad, cr.id_caseta, cr.id_equiporiego, cr.id_sectorriego, cr.id_ceco,
+                   c.nombre as nombre_ceco, ca.nombre as nombre_caseta, 
+                   e.nombre as nombre_equipo, s.nombre as nombre_sector
+            FROM tarja_fact_cecoriego cr
+            JOIN general_dim_ceco c ON cr.id_ceco = c.id
+            JOIN riego_dim_caseta ca ON cr.id_caseta = ca.id
+            JOIN riego_dim_equipo e ON cr.id_equiporiego = e.id
+            JOIN riego_dim_sector s ON cr.id_sectorriego = s.id
+            WHERE cr.id_actividad = %s
+            ORDER BY c.nombre ASC
+        """, (id_actividad,))
+        
+        cecos = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        if not cecos:
+            return jsonify([]), 200
+            
+        return jsonify(cecos), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+# Crear ceco riego
+@opciones_bp.route('/cecosriego', methods=['POST'])
+@jwt_required()
+def crear_cecoriego():
+    try:
+        data = request.json
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Insertar ceco riego (sin el campo id)
+        cursor.execute("""
+            INSERT INTO tarja_fact_cecoriego (
+                id_actividad, id_caseta, id_equiporiego,
+                id_sectorriego, id_ceco
+            ) VALUES (%s, %s, %s, %s, %s)
+        """, (
+            data['id_actividad'],
+            data['id_caseta'],
+            data['id_equiporiego'],
+            data['id_sectorriego'],
+            data['id_ceco']
+        ))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "message": "Ceco riego creado correctamente"
+        }), 201
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+# Eliminar CECO de riego
+@opciones_bp.route('/cecosriego/<string:id>', methods=['DELETE'])
+@jwt_required()
+def eliminar_cecoriego(id):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Eliminar CECO de riego
+        cursor.execute("DELETE FROM tarja_fact_cecoriego WHERE id = %s", (id,))
+        conn.commit()
+        
+        if cursor.rowcount == 0:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Ceco riego no encontrado"}), 404
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({"message": "Ceco riego eliminado correctamente"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
