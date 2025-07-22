@@ -24,8 +24,8 @@ jobs:
 
     - name: Build and Deploy
       run: |
-        # Construir imagen
-        gcloud builds submit --tag gcr.io/lahornilla-cloud/api-lh-tarja
+        # Construir imagen especificando el Dockerfile
+        gcloud builds submit --tag gcr.io/lahornilla-cloud/api-lh-tarja --file dockerfile .
         
         # Desplegar en Cloud Run con Cloud SQL
         gcloud run deploy api-lh-tarja \
