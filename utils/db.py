@@ -60,7 +60,11 @@ def get_db_connection():
                         # Extraer unix_socket
                         if 'unix_socket=' in params:
                             socket_part = params.split('unix_socket=', 1)[1]
-                            instance = socket_part.split('/', 1)[1]
+                            # Remover /cloudsql/ si ya está presente
+                            if socket_part.startswith('/cloudsql/'):
+                                instance = socket_part.replace('/cloudsql/', '')
+                            else:
+                                instance = socket_part
                             
                             logger.info(f"✅ Parseado manualmente:")
                             logger.info(f"   User: {user}")
