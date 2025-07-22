@@ -65,6 +65,21 @@ def create_app():
     from blueprints.opciones import obtener_sucursales
     root_bp.add_url_rule('/sucursales/', 'obtener_sucursales', obtener_sucursales, methods=['GET', 'OPTIONS'])
     
+    # Endpoint de prueba para verificar conexión a BD
+    @root_bp.route('/test-db', methods=['GET'])
+    def test_database():
+        try:
+            from utils.db import get_db_connection
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT VERSION()")
+            version = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            return {"status": "success", "message": "Conexión exitosa", "mysql_version": version[0]}, 200
+        except Exception as e:
+            return {"status": "error", "message": str(e)}, 500
+    
     # Registrar el blueprint raíz
     app.register_blueprint(root_bp, url_prefix="/api")
 
