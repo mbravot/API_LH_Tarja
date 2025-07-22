@@ -27,11 +27,11 @@ jobs:
         # Construir imagen usando Cloud Build
         gcloud builds submit --tag gcr.io/lahornilla-cloud/api-lh-tarja
         
-        # Desplegar en Cloud Run con Cloud SQL
-        gcloud run deploy api-lh-tarja \
+        # Desplegar en Cloud Run con Cloud SQL (usando el nombre correcto)
+        gcloud run deploy apilhtarja \
           --image gcr.io/lahornilla-cloud/api-lh-tarja \
           --region us-central1 \
           --platform managed \
           --allow-unauthenticated \
-          --add-cloudsql-instances gestion-la-hornilla:us-central1:lahornilla-db \
-          --set-env-vars DB_HOST="localhost",DB_USER="UserApp",DB_PASSWORD="&8y7c()tu9t/+,6`",DB_NAME="lahornilla_base_normalizada",DB_PORT=3306,K_SERVICE="api-lh-tarja"
+          --add-cloudsql-instances gestion-la-hornilla:us-central1:gestion-la-hornilla \
+          --set-env-vars DATABASE_URL="mysql+pymysql://UserApp:&8y7c()tu9t/+,6`@/lahornilla_base_normalizada?unix_socket=/cloudsql/gestion-la-hornilla:us-central1:gestion-la-hornilla",SECRET_KEY="Inicio01*",JWT_SECRET_KEY="Inicio01*",FLASK_ENV="production",FLASK_DEBUG="0",K_SERVICE="apilhtarja"
