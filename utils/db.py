@@ -16,7 +16,7 @@ def get_db_connection():
         # Formato: mysql+pymysql://user:password@/database?unix_socket=/cloudsql/instance
         url = Config.DATABASE_URL
         
-        # Extraer componentes usando regex
+        # Extraer componentes usando regex corregido
         pattern = r'mysql\+pymysql://([^:]+):([^@]+)@/([^?]+)\?unix_socket=([^/]+)/(.+)'
         match = re.match(pattern, url)
         
@@ -42,6 +42,47 @@ def get_db_connection():
         else:
             logger.error(f"❌ No se pudo parsear DATABASE_URL: {url}")
             logger.error(f"❌ Pattern no coincidió")
+            
+            # Intentar parsear manualmente
+            try:
+                # Remover mysql+pymysql://
+                url_clean = url.replace('mysql+pymysql://', '')
+                
+                # Separar credenciales y resto
+                if '@/' in url_clean:
+                    credentials, rest = url_clean.split('@/', 1)
+                    user, password = credentials.split(':', 1)
+                    
+                    # Separar database y parámetros
+                    if '?' in rest:
+                        database, params = rest.split('?', 1)
+                        
+                        # Extraer unix_socket
+                        if 'unix_socket=' in params:
+                            socket_part = params.split('unix_socket=', 1)[1]
+                            instance = socket_part.split('/', 1)[1]
+                            
+                            logger.info(f"✅ Parseado manualmente:")
+                            logger.info(f"   User: {user}")
+                            logger.info(f"   Database: {database}")
+                            logger.info(f"   Instance: {instance}")
+                            
+                            connection_params = {
+                                'host': 'localhost',
+                                'user': user,
+                                'password': password,
+                                'database': database,
+                                'port': 3306,
+                                'unix_socket': f'/cloudsql/{instance}'
+                            }
+                            logger.info(f"🔗 Parámetros de conexión: {connection_params}")
+                            
+                            return mysql.connector.connect(**connection_params)
+                
+                logger.error(f"❌ Parseado manual también falló")
+                
+            except Exception as e:
+                logger.error(f"❌ Error en parseado manual: {str(e)}")
             
             # Fallback para formato simple
             url = url.replace('mysql+pymysql://', '')
