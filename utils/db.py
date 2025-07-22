@@ -2,10 +2,16 @@ import mysql.connector
 from config import Config
 import os
 import re
+import logging
+
+# Configurar logging
+logger = logging.getLogger(__name__)
 
 def get_db_connection():
     # Usar DATABASE_URL si está disponible (como la API de tickets)
     if hasattr(Config, 'DATABASE_URL') and Config.DATABASE_URL:
+        logger.info(f"🔍 DATABASE_URL: {Config.DATABASE_URL}")
+        
         # Parsear DATABASE_URL con formato de Cloud SQL
         # Formato: mysql+pymysql://user:password@/database?unix_socket=/cloudsql/instance
         url = Config.DATABASE_URL
@@ -16,17 +22,27 @@ def get_db_connection():
         
         if match:
             user, password, database, socket_prefix, instance = match.groups()
+            logger.info(f"✅ Parseado correctamente:")
+            logger.info(f"   User: {user}")
+            logger.info(f"   Database: {database}")
+            logger.info(f"   Instance: {instance}")
             
             # Para Cloud SQL con unix_socket, usar localhost
-            return mysql.connector.connect(
-                host='localhost',
-                user=user,
-                password=password,
-                database=database,
-                port=3306,
-                unix_socket=f'/cloudsql/{instance}'
-            )
+            connection_params = {
+                'host': 'localhost',
+                'user': user,
+                'password': password,
+                'database': database,
+                'port': 3306,
+                'unix_socket': f'/cloudsql/{instance}'
+            }
+            logger.info(f"🔗 Parámetros de conexión: {connection_params}")
+            
+            return mysql.connector.connect(**connection_params)
         else:
+            logger.error(f"❌ No se pudo parsear DATABASE_URL: {url}")
+            logger.error(f"❌ Pattern no coincidió")
+            
             # Fallback para formato simple
             url = url.replace('mysql+pymysql://', '')
             if '@' in url:
@@ -34,6 +50,7 @@ def get_db_connection():
                 user, password = credentials.split(':', 1)
                 host, database = rest.split('/', 1)
                 
+                logger.info(f"🔄 Usando fallback con host: {host}")
                 return mysql.connector.connect(
                     host=host,
                     user=user,
@@ -46,6 +63,7 @@ def get_db_connection():
                 credentials, database = url.split('/', 1)
                 user, password = credentials.split(':', 1)
                 
+                logger.info(f"🔄 Usando fallback localhost")
                 return mysql.connector.connect(
                     host='localhost',
                     user=user,
@@ -54,6 +72,7 @@ def get_db_connection():
                     port=3306
                 )
     else:
+        logger.info("🔄 Usando configuración anterior (sin DATABASE_URL)")
         # Fallback a la configuración anterior
         return mysql.connector.connect(
             host=Config.DB_HOST,
