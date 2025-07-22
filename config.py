@@ -6,6 +6,9 @@ load_dotenv()  # Carga las variables del archivo .env
 class Config:
     DEBUG = os.getenv("DEBUG", "True") == "True"
     
+    # Usar DATABASE_URL como la API de tickets
+    DATABASE_URL = os.getenv("DATABASE_URL", "mysql+pymysql://UserApp:&8y7c()tu9t/+,6`@localhost/lahornilla_base_normalizada")
+    
     # Configuración automática para Cloud SQL
     if os.getenv('K_SERVICE'):  # Está en Cloud Run
         DB_HOST = 'localhost'
