@@ -4,6 +4,10 @@ from config import Config
 from utils.db import get_db_connection
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, create_refresh_token
 from datetime import date
+import logging
+
+# Configurar logging
+logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint('auth_bp', __name__)
 
@@ -45,14 +49,21 @@ def register():
 @auth_bp.route('/login', methods=['POST'])
 def login():
     try:
+        logger.info("🔍 Iniciando proceso de login...")
         data = request.get_json()
         usuario = data.get('usuario')
         clave = data.get('clave')
 
+        logger.info(f"👤 Usuario intentando login: {usuario}")
+
         if not usuario or not clave:
+            logger.warning("❌ Faltan datos de usuario o clave")
             return jsonify({"error": "Faltan datos de usuario o clave"}), 400
 
+        logger.info("🔗 Intentando conectar a la base de datos...")
         conn = get_db_connection()
+        logger.info("✅ Conexión a BD establecida")
+        
         cursor = conn.cursor(dictionary=True)
 
         # Buscar usuario y verificar estado y acceso a la app
@@ -69,13 +80,24 @@ def login():
                 AND p.id_app = 2
             )
         """
+        logger.info("🔍 Ejecutando consulta de usuario...")
         cursor.execute(sql, (usuario,))
         user = cursor.fetchone()
 
-        if not user or not bcrypt.checkpw(clave.encode('utf-8'), user['clave'].encode('utf-8')):
+        if not user:
+            logger.warning(f"❌ Usuario no encontrado: {usuario}")
             cursor.close()
             conn.close()
             return jsonify({"error": "Usuario o clave incorrectos"}), 401
+
+        logger.info("🔐 Verificando contraseña...")
+        if not bcrypt.checkpw(clave.encode('utf-8'), user['clave'].encode('utf-8')):
+            logger.warning(f"❌ Contraseña incorrecta para usuario: {usuario}")
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Usuario o clave incorrectos"}), 401
+
+        logger.info("✅ Usuario autenticado correctamente")
 
         # Crear token con información adicional
         access_token = create_access_token(
@@ -91,6 +113,7 @@ def login():
         cursor.close()
         conn.close()
 
+        logger.info("🎉 Login exitoso")
         return jsonify({
             "access_token": access_token,
             "usuario": user['usuario'],
@@ -101,6 +124,7 @@ def login():
         }), 200
 
     except Exception as e:
+        logger.error(f"❌ Error en login: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @auth_bp.route('/refresh', methods=['POST'])
