@@ -288,7 +288,9 @@ Content-Type: application/json
   "correo": "usuario@lahornilla.cl",
   "clave": "password123",
   "id_sucursalactiva": 103,
-  "id_colaborador": null,
+  "nombre": "Juan",
+"apellido_paterno": "Pérez",
+"apellido_materno": "González",
   "id_estado": 1
 }
 ```
@@ -468,7 +470,9 @@ Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "id_colaborador": "colaborador_id",
+  "nombre": "Juan",
+"apellido_paterno": "Pérez", 
+"apellido_materno": "González",
   "fecha_inicio": "2025-07-22",
   "fecha_fin": "2025-07-23",
   "motivo": "Cita médica",

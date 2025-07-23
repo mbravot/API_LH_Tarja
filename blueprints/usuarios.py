@@ -31,7 +31,9 @@ def obtener_usuarios():
         cursor = conn.cursor(dictionary=True)
         cursor.execute("""
     SELECT 
-        u.id, u.usuario, u.correo, u.id_sucursalactiva, u.id_estado, u.id_rol, u.id_perfil, u.id_colaborador, u.fecha_creacion, s.nombre AS nombre_sucursal
+        u.id, u.usuario, u.nombre, u.apellido_paterno, u.apellido_materno, 
+        u.correo, u.id_sucursalactiva, u.id_estado, u.id_rol, u.id_perfil, 
+        u.fecha_creacion, s.nombre AS nombre_sucursal
     FROM general_dim_usuario u
     LEFT JOIN general_dim_sucursal s ON u.id_sucursalactiva = s.id
 """)
@@ -54,10 +56,12 @@ def crear_usuario():
     data = request.json
     
     usuario = data.get('usuario')
+    nombre = data.get('nombre')
+    apellido_paterno = data.get('apellido_paterno')
+    apellido_materno = data.get('apellido_materno')
     correo = data.get('correo')
     clave = data.get('clave')
     id_sucursalactiva = data.get('id_sucursalactiva')
-    id_colaborador = data.get('id_colaborador')  # Opcional, puede ser None
 
     # Convertir id_sucursalactiva a entero si es necesario
     if id_sucursalactiva:
@@ -67,8 +71,8 @@ def crear_usuario():
             return jsonify({"error": "id_sucursalactiva debe ser un número válido"}), 400
 
     # Validar campos obligatorios
-    if not usuario or not correo or not clave or not id_sucursalactiva:
-        return jsonify({"error": "Faltan campos obligatorios: usuario, correo, clave, id_sucursalactiva"}), 400
+    if not usuario or not nombre or not apellido_paterno or not correo or not clave or not id_sucursalactiva:
+        return jsonify({"error": "Faltan campos obligatorios: usuario, nombre, apellido_paterno, correo, clave, id_sucursalactiva"}), 400
 
     # Validar que la sucursal existe
     try:
@@ -82,15 +86,6 @@ def crear_usuario():
             cursor.close()
             conn.close()
             return jsonify({"error": "La sucursal especificada no existe"}), 400
-
-        # Si se especificó un colaborador, verificar que existe
-        if id_colaborador:
-            cursor.execute("SELECT id FROM general_dim_colaborador WHERE id = %s", (id_colaborador,))
-            colaborador = cursor.fetchone()
-            if not colaborador:
-                cursor.close()
-                conn.close()
-                return jsonify({"error": "El colaborador especificado no existe"}), 400
 
         # Verificar que el usuario no existe
         cursor.execute("SELECT id FROM general_dim_usuario WHERE usuario = %s OR correo = %s", (usuario, correo))
@@ -115,12 +110,12 @@ def crear_usuario():
         # Insertar usuario
         cursor.execute("""
             INSERT INTO general_dim_usuario (
-                id, usuario, correo, clave, id_sucursalactiva, 
-                id_estado, id_rol, id_perfil, id_colaborador, fecha_creacion
+                id, usuario, nombre, apellido_paterno, apellido_materno, correo, clave, 
+                id_sucursalactiva, id_estado, id_rol, id_perfil, fecha_creacion
             )
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (usuario_id, usuario, correo, clave_encriptada, id_sucursalactiva, 
-              id_estado, id_rol, id_perfil, id_colaborador, date.today()))
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (usuario_id, usuario, nombre, apellido_paterno, apellido_materno, correo, clave_encriptada, 
+              id_sucursalactiva, id_estado, id_rol, id_perfil, date.today()))
         
         # Asignar permiso a la app (id_app = 2)
         pivot_id = str(uuid.uuid4())
@@ -137,9 +132,11 @@ def crear_usuario():
             "message": "Usuario creado correctamente",
             "id": usuario_id,
             "usuario": usuario,
+            "nombre": nombre,
+            "apellido_paterno": apellido_paterno,
+            "apellido_materno": apellido_materno,
             "correo": correo,
-            "id_sucursalactiva": id_sucursalactiva,
-            "id_colaborador": id_colaborador
+            "id_sucursalactiva": id_sucursalactiva
         }), 201
         
     except Exception as e:
@@ -156,10 +153,12 @@ def editar_usuario(usuario_id):
     data = request.json
     
     usuario_nombre = data.get('usuario')
+    nombre = data.get('nombre')
+    apellido_paterno = data.get('apellido_paterno')
+    apellido_materno = data.get('apellido_materno')
     correo = data.get('correo')
     clave = data.get('clave')  # Opcional, solo si se quiere cambiar
     id_sucursalactiva = data.get('id_sucursalactiva')
-    id_colaborador = data.get('id_colaborador')  # Opcional, puede ser None
     id_estado = data.get('id_estado')  # Opcional, para cambiar estado
 
     # Convertir id_sucursalactiva a entero si es necesario
@@ -177,8 +176,8 @@ def editar_usuario(usuario_id):
             return jsonify({"error": "id_estado debe ser un número válido"}), 400
 
     # Validar campos obligatorios
-    if not usuario_nombre or not correo or not id_sucursalactiva:
-        return jsonify({"error": "Faltan campos obligatorios: usuario, correo, id_sucursalactiva"}), 400
+    if not usuario_nombre or not nombre or not apellido_paterno or not correo or not id_sucursalactiva:
+        return jsonify({"error": "Faltan campos obligatorios: usuario, nombre, apellido_paterno, correo, id_sucursalactiva"}), 400
 
     try:
         conn = get_db_connection()
@@ -200,15 +199,6 @@ def editar_usuario(usuario_id):
             conn.close()
             return jsonify({"error": "La sucursal especificada no existe o no es del tipo correcto"}), 400
 
-        # Si se especificó un colaborador, verificar que existe
-        if id_colaborador:
-            cursor.execute("SELECT id FROM general_dim_colaborador WHERE id = %s", (id_colaborador,))
-            colaborador = cursor.fetchone()
-            if not colaborador:
-                cursor.close()
-                conn.close()
-                return jsonify({"error": "El colaborador especificado no existe"}), 400
-
         # Verificar que no existe otro usuario con el mismo nombre o correo
         cursor.execute("SELECT id FROM general_dim_usuario WHERE (usuario = %s OR correo = %s) AND id != %s", 
                       (usuario_nombre, correo, usuario_id))
@@ -224,17 +214,19 @@ def editar_usuario(usuario_id):
             clave_encriptada = bcrypt.hashpw(clave.encode('utf-8'), salt).decode('utf-8')
             sql = """
                 UPDATE general_dim_usuario 
-                SET usuario = %s, correo = %s, clave = %s, id_sucursalactiva = %s, id_colaborador = %s, id_estado = %s
+                SET usuario = %s, nombre = %s, apellido_paterno = %s, apellido_materno = %s, 
+                    correo = %s, clave = %s, id_sucursalactiva = %s, id_estado = %s
                 WHERE id = %s
             """
-            valores = (usuario_nombre, correo, clave_encriptada, id_sucursalactiva, id_colaborador, id_estado, usuario_id)
+            valores = (usuario_nombre, nombre, apellido_paterno, apellido_materno, correo, clave_encriptada, id_sucursalactiva, id_estado, usuario_id)
         else:
             sql = """
                 UPDATE general_dim_usuario 
-                SET usuario = %s, correo = %s, id_sucursalactiva = %s, id_colaborador = %s, id_estado = %s
+                SET usuario = %s, nombre = %s, apellido_paterno = %s, apellido_materno = %s, 
+                    correo = %s, id_sucursalactiva = %s, id_estado = %s
                 WHERE id = %s
             """
-            valores = (usuario_nombre, correo, id_sucursalactiva, id_colaborador, id_estado, usuario_id)
+            valores = (usuario_nombre, nombre, apellido_paterno, apellido_materno, correo, id_sucursalactiva, id_estado, usuario_id)
         
         cursor.execute(sql, valores)
         filas_afectadas = cursor.rowcount
@@ -246,9 +238,11 @@ def editar_usuario(usuario_id):
         return jsonify({
             "message": "Usuario actualizado correctamente",
             "usuario": usuario_nombre,
+            "nombre": nombre,
+            "apellido_paterno": apellido_paterno,
+            "apellido_materno": apellido_materno,
             "correo": correo,
             "id_sucursalactiva": id_sucursalactiva,
-            "id_colaborador": id_colaborador,
             "id_estado": id_estado,
             "filas_afectadas": filas_afectadas
         }), 200

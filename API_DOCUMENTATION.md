@@ -1,4 +1,4 @@
-# 📚 **Documentación Técnica API LH Tarja**
+ # 📚 **Documentación Técnica API LH Tarja**
 
 ## 🏗️ **Arquitectura del Sistema**
 
@@ -371,7 +371,9 @@ Authorization: Bearer <token>
     "correo": "mbravo@lahornilla.cl",
     "id_sucursalactiva": 103,
     "sucursal_nombre": "SANTA VICTORIA",
-    "id_colaborador": null,
+    "nombre": "María",
+    "apellido_paterno": "Bravo",
+    "apellido_materno": "González",
     "id_estado": 1
   }
 ]
@@ -385,10 +387,12 @@ Authorization: Bearer <token>
 {
   "usuario": "nuevo_usuario",
   "correo": "usuario@lahornilla.cl",
-  "clave": "password123",
-  "id_sucursalactiva": 103,
-  "id_colaborador": null,
-  "id_estado": 1
+      "clave": "password123",
+    "id_sucursalactiva": 103,
+    "nombre": "Juan",
+    "apellido_paterno": "Pérez",
+    "apellido_materno": "González",
+    "id_estado": 1
 }
 ```
 
