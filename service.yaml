@@ -1,0 +1,40 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: apilhtarja
+  namespace: default
+spec:
+  template:
+    metadata:
+      annotations:
+        run.googleapis.com/execution-environment: gen2
+        run.googleapis.com/cpu-throttling: "false"
+        run.googleapis.com/startup-cpu-boost: "true"
+    spec:
+      containerConcurrency: 80
+      timeoutSeconds: 300
+      containers:
+      - image: gcr.io/lahornilla-cloud/api-lh-tarja
+        ports:
+        - containerPort: 8080
+        env:
+        - name: DATABASE_URL
+          value: "mysql+pymysql://UserApp:&8y7c()tu9t/+,6`@/lahornilla_base_normalizada?unix_socket=/cloudsql/gestion-la-hornilla:us-central1:gestion-la-hornilla"
+        - name: SECRET_KEY
+          value: "Inicio01*"
+        - name: JWT_SECRET_KEY
+          value: "Inicio01*"
+        - name: FLASK_ENV
+          value: "production"
+        - name: FLASK_DEBUG
+          value: "0"
+        - name: K_SERVICE
+          value: "apilhtarja"
+        resources:
+          limits:
+            cpu: "1"
+            memory: "512Mi"
+          requests:
+            cpu: "500m"
+            memory: "256Mi"
+      serviceAccountName: default 
