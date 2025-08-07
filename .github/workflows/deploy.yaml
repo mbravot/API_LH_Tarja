@@ -25,7 +25,7 @@ jobs:
     - name: Build and Deploy
       run: |
         # Construir imagen usando Cloud Build
-        gcloud builds submit --tag gcr.io/lahornilla-cloud/api-lh-tarja
+        gcloud builds submit --tag gcr.io/lahornilla-cloud/apilhtarja
         
         # Desplegar usando el archivo de configuración del servicio
         gcloud run services replace service.yaml --region=us-central1

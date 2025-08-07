@@ -14,7 +14,7 @@ spec:
       containerConcurrency: 80
       timeoutSeconds: 300
       containers:
-      - image: gcr.io/lahornilla-cloud/api-lh-tarja
+      - image: gcr.io/lahornilla-cloud/apilhtarja
         ports:
         - containerPort: 8080
         env:
