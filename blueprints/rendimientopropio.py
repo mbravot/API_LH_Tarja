@@ -98,9 +98,9 @@ def editar_rendimiento_propio(id_rendimiento):
             WHERE id = %s
         """
         cursor.execute(sql, (
-            data.get('horas_trabajadas', rendimiento['horas_trabajadas']),
-            data.get('horas_extras', rendimiento['horas_extras']),
-            data.get('rendimiento', rendimiento['rendimiento']),
+            float(data.get('horas_trabajadas', rendimiento['horas_trabajadas'])),
+            float(data.get('horas_extras', rendimiento['horas_extras'])),
+            float(data.get('rendimiento', rendimiento['rendimiento'])),
             data.get('id_bono', rendimiento['id_bono']),
             id_rendimiento
         ))

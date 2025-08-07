@@ -117,9 +117,9 @@ def crear_rendimiento():
                         nuevo_id,
                         rendimiento.get('id_actividad'),
                         rendimiento.get('id_colaborador'),
-                        rendimiento.get('rendimiento'),
-                        rendimiento.get('horas_trabajadas', 0),
-                        rendimiento.get('horas_extras', 0),
+                        float(rendimiento.get('rendimiento', 0)),
+                        float(rendimiento.get('horas_trabajadas', 0)),
+                        float(rendimiento.get('horas_extras', 0)),
                         rendimiento.get('id_bono'),
                         rendimiento.get('id_porcentaje_individual')
                     )
@@ -130,9 +130,9 @@ def crear_rendimiento():
                         nuevo_id,
                         rendimiento.get('id_actividad'),
                         rendimiento.get('id_trabajador'),
-                        rendimiento.get('rendimiento'),
-                        rendimiento.get('horas_trabajadas', 0),
-                        rendimiento.get('horas_extras', 0),
+                        float(rendimiento.get('rendimiento', 0)),
+                        float(rendimiento.get('horas_trabajadas', 0)),
+                        float(rendimiento.get('horas_extras', 0)),
                         rendimiento.get('id_bono'),
                         rendimiento.get('id_porcentaje_individual')
                     )
@@ -151,8 +151,8 @@ def crear_rendimiento():
                 valores = (
                     nuevo_id,
                     rendimiento.get('id_actividad'),
-                    rendimiento.get('rendimiento_total'),
-                    rendimiento.get('cantidad_trab'),
+                    float(rendimiento.get('rendimiento_total', 0)),
+                    float(rendimiento.get('cantidad_trab', 0)),
                     rendimiento.get('id_porcentaje')
                 )
                 cursor.execute(sql, valores)
@@ -211,9 +211,9 @@ def editar_rendimiento(rendimiento_id):
                 valores = (
                     None,  # id_trabajador
                     data.get('id_colaborador'),
-                    data.get('rendimiento'),
-                    data.get('horas_trabajadas'),
-                    data.get('horas_extras'),
+                    float(data.get('rendimiento', 0)),
+                    float(data.get('horas_trabajadas', 0)),
+                    float(data.get('horas_extras', 0)),
                     data.get('id_bono'),
                     data.get('id_porcentaje_individual'),
                     rendimiento_id
@@ -225,9 +225,9 @@ def editar_rendimiento(rendimiento_id):
                 valores = (
                     data.get('id_trabajador'),
                     None,  # id_colaborador
-                    data.get('rendimiento'),
-                    data.get('horas_trabajadas'),
-                    data.get('horas_extras'),
+                    float(data.get('rendimiento', 0)),
+                    float(data.get('horas_trabajadas', 0)),
+                    float(data.get('horas_extras', 0)),
                     data.get('id_bono'),
                     data.get('id_porcentaje_individual'),
                     rendimiento_id
@@ -244,8 +244,8 @@ def editar_rendimiento(rendimiento_id):
                 WHERE id = %s
             """
             valores = (
-                data.get('rendimiento_total'),
-                data.get('cantidad_trab'),
+                float(data.get('rendimiento_total', 0)),
+                float(data.get('cantidad_trab', 0)),
                 data.get('id_porcentaje'),
                 rendimiento_id
             )
@@ -533,9 +533,9 @@ def crear_rendimiento_individual_propio():
             rendimiento_id,
             data['id_actividad'],
             data['id_colaborador'],
-            data['rendimiento'],
+            float(data['rendimiento']),
             horas_trabajadas,
-            horas_extras,
+            float(horas_extras),
             data.get('id_bono', None)
         ))
         conn.commit()
@@ -563,7 +563,7 @@ def crear_rendimiento_individual_contratista():
             rendimiento_id,
             data['id_actividad'],
             data['id_trabajador'],
-            data['rendimiento'],
+            float(data['rendimiento']),
             data['id_porcentaje_individual']
         ))
         conn.commit()
@@ -611,9 +611,9 @@ def editar_rendimiento_individual_propio(rendimiento_id):
         cursor.execute(sql, (
             data['id_actividad'],
             data['id_colaborador'],
-            data['rendimiento'],
+            float(data['rendimiento']),
             horas_trabajadas,
-            horas_extras,
+            float(horas_extras),
             data.get('id_bono', None),
             rendimiento_id
         ))
@@ -643,7 +643,7 @@ def editar_rendimiento_individual_contratista(rendimiento_id):
         cursor.execute(sql, (
             data['id_actividad'],
             data['id_trabajador'],
-            data['rendimiento'],
+            float(data['rendimiento']),
             data['id_porcentaje_individual'],
             rendimiento_id
         ))
