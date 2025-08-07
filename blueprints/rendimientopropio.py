@@ -5,6 +5,59 @@ import uuid
 
 rendimientopropio_bp = Blueprint('rendimientopropio_bp', __name__)
 
+# Crear rendimiento propio
+@rendimientopropio_bp.route('/', methods=['POST'])
+@jwt_required()
+def crear_rendimiento_propio():
+    try:
+        data = request.json
+        usuario_id = get_jwt_identity()
+        
+        # Validar campos requeridos
+        campos_requeridos = ['id_actividad', 'id_colaborador', 'rendimiento']
+        for campo in campos_requeridos:
+            if campo not in data or not data[campo]:
+                return jsonify({"error": f"El campo {campo} es requerido"}), 400
+        
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Verificar que la actividad existe y pertenece al usuario
+        cursor.execute("""
+            SELECT id FROM tarja_fact_actividad 
+            WHERE id = %s AND id_usuario = %s
+        """, (data['id_actividad'], usuario_id))
+        actividad = cursor.fetchone()
+        if not actividad:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Actividad no encontrada o no tienes permisos"}), 404
+        
+        # Generar id UUID
+        rendimiento_id = str(uuid.uuid4())
+        
+        sql = """
+            INSERT INTO tarja_fact_rendimientopropio (
+                id, id_actividad, id_colaborador, rendimiento, 
+                horas_trabajadas, horas_extras, id_bono
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """
+        cursor.execute(sql, (
+            rendimiento_id,
+            data['id_actividad'],
+            data['id_colaborador'],
+            float(data['rendimiento']),  # ✅ Conversión explícita a float
+            float(data.get('horas_trabajadas', 0)),
+            float(data.get('horas_extras', 0)),
+            data.get('id_bono', None)
+        ))
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return jsonify({"message": "Rendimiento propio creado correctamente", "id": rendimiento_id}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 # Listar rendimientos propios por actividad (filtrado por sucursal del usuario)
 @rendimientopropio_bp.route('/actividad/<string:id_actividad>', methods=['GET'])
 @jwt_required()
