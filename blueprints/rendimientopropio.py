@@ -108,7 +108,7 @@ def listar_rendimientos_propios_por_actividad(id_actividad):
             FROM tarja_fact_rendimientopropio r
             JOIN general_dim_colaborador c ON r.id_colaborador = c.id
             WHERE r.id_actividad = %s
-            ORDER BY c.nombre, c.apellido_paterno, c.apellido_materno
+            ORDER BY c.nombre ASC, c.apellido_paterno ASC, c.apellido_materno ASC
         """, (id_actividad,))
         rendimientos = cursor.fetchall()
         cursor.close()

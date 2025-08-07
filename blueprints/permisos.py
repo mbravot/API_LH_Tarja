@@ -33,7 +33,7 @@ def listar_permisos():
             JOIN general_dim_colaborador c ON p.id_colaborador = c.id
             JOIN tarja_dim_permisoestado e ON p.id_estadopermiso = e.id
             WHERE c.id_sucursal = %s AND p.id_usuario = %s
-            ORDER BY p.fecha DESC
+            ORDER BY c.nombre ASC, c.apellido_paterno ASC, c.apellido_materno ASC, p.fecha DESC
         """, (id_sucursal, usuario_id))
         permisos = cursor.fetchall()
         cursor.close()

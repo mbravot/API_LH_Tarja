@@ -429,7 +429,7 @@ def obtener_rendimientos_individuales_propios():
         if id_actividad:
             sql += " AND r.id_actividad = %s"
             params.append(id_actividad)
-        sql += " ORDER BY l.nombre ASC"
+        sql += " ORDER BY c.nombre ASC, c.apellido_paterno ASC, c.apellido_materno ASC, l.nombre ASC"
         cursor.execute(sql, tuple(params))
         rendimientos = cursor.fetchall()
 
@@ -479,7 +479,7 @@ def obtener_rendimientos_individuales_contratistas():
             JOIN general_dim_trabajador t ON r.id_trabajador = t.id
             JOIN general_dim_porcentajecontratista p ON r.id_porcentaje_individual = p.id
             WHERE a.id_sucursalactiva = %s
-            ORDER BY l.nombre ASC
+            ORDER BY t.nombre ASC, l.nombre ASC
         """, (id_sucursal,))
         rendimientos = cursor.fetchall()
 
