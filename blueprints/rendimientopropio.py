@@ -111,6 +111,16 @@ def listar_rendimientos_propios_por_actividad(id_actividad):
             ORDER BY c.nombre ASC, c.apellido_paterno ASC, c.apellido_materno ASC
         """, (id_actividad,))
         rendimientos = cursor.fetchall()
+        
+        # Convertir valores numéricos a float para evitar redondeo
+        for r in rendimientos:
+            if 'rendimiento' in r and r['rendimiento'] is not None:
+                r['rendimiento'] = float(r['rendimiento'])
+            if 'horas_trabajadas' in r and r['horas_trabajadas'] is not None:
+                r['horas_trabajadas'] = float(r['horas_trabajadas'])
+            if 'horas_extras' in r and r['horas_extras'] is not None:
+                r['horas_extras'] = float(r['horas_extras'])
+        
         cursor.close()
         conn.close()
         # Formatear nombre completo del colaborador

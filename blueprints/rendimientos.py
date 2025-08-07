@@ -433,6 +433,15 @@ def obtener_rendimientos_individuales_propios():
         cursor.execute(sql, tuple(params))
         rendimientos = cursor.fetchall()
 
+        # Convertir valores numéricos a float para evitar redondeo
+        for rendimiento in rendimientos:
+            if 'rendimiento' in rendimiento and rendimiento['rendimiento'] is not None:
+                rendimiento['rendimiento'] = float(rendimiento['rendimiento'])
+            if 'horas_trabajadas' in rendimiento and rendimiento['horas_trabajadas'] is not None:
+                rendimiento['horas_trabajadas'] = float(rendimiento['horas_trabajadas'])
+            if 'horas_extras' in rendimiento and rendimiento['horas_extras'] is not None:
+                rendimiento['horas_extras'] = float(rendimiento['horas_extras'])
+
         cursor.close()
         conn.close()
 
@@ -482,6 +491,11 @@ def obtener_rendimientos_individuales_contratistas():
             ORDER BY t.nombre ASC, l.nombre ASC
         """, (id_sucursal,))
         rendimientos = cursor.fetchall()
+
+        # Convertir valores numéricos a float para evitar redondeo
+        for rendimiento in rendimientos:
+            if 'rendimiento' in rendimiento and rendimiento['rendimiento'] is not None:
+                rendimiento['rendimiento'] = float(rendimiento['rendimiento'])
 
         cursor.close()
         conn.close()
