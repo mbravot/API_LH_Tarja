@@ -104,7 +104,7 @@ def listar_rendimientos_propios_por_actividad(id_actividad):
         # Obtener rendimientos propios
         cursor.execute("""
             SELECT r.id, r.id_colaborador, c.nombre as nombre_colaborador, c.apellido_paterno, c.apellido_materno,
-                   r.horas_trabajadas
+                   r.horas_trabajadas, r.rendimiento, r.horas_extras, r.id_bono
             FROM tarja_fact_rendimientopropio r
             JOIN general_dim_colaborador c ON r.id_colaborador = c.id
             WHERE r.id_actividad = %s
