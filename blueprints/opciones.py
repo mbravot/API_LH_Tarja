@@ -125,7 +125,7 @@ def obtener_cecos():
             SELECT c.id, c.nombre, c.id_cecotipo, t.nombre as nombre_tipo
             FROM general_dim_ceco c
             LEFT JOIN general_dim_cecotipo t ON c.id_cecotipo = t.id
-            WHERE c.id_sucursal = %s
+            WHERE c.id_sucursal = %s AND c.id_estado = 1
             ORDER BY c.nombre ASC
         """, (id_sucursal,))
 
@@ -305,7 +305,7 @@ def obtener_cecos_administrativos():
         cursor.execute("""
             SELECT id, nombre
             FROM general_dim_ceco
-            WHERE id_cecotipo = 1 AND id_sucursal = %s
+            WHERE id_cecotipo = 1 AND id_sucursal = %s AND id_estado = 1
             ORDER BY nombre ASC
         """, (id_sucursal,))
 
@@ -715,7 +715,7 @@ def obtener_cecos_productivos():
         cursor.execute("""
             SELECT id, nombre
             FROM general_dim_ceco
-            WHERE id_cecotipo = 2 AND id_sucursal = %s
+            WHERE id_cecotipo = 2 AND id_sucursal = %s AND id_estado = 1
             ORDER BY nombre ASC
         """, (id_sucursal,))
         cecos = cursor.fetchall()
@@ -743,7 +743,7 @@ def obtener_cecos_maquinaria():
         cursor.execute("""
             SELECT id, nombre
             FROM general_dim_ceco
-            WHERE id_cecotipo = 3 AND id_sucursal = %s
+            WHERE id_cecotipo = 3 AND id_sucursal = %s AND id_estado = 1
             ORDER BY nombre ASC
         """, (id_sucursal,))
         cecos = cursor.fetchall()
@@ -771,7 +771,7 @@ def obtener_cecos_inversion():
         cursor.execute("""
             SELECT id, nombre
             FROM general_dim_ceco
-            WHERE id_cecotipo = 4 AND id_sucursal = %s
+            WHERE id_cecotipo = 4 AND id_sucursal = %s AND id_estado = 1
             ORDER BY nombre ASC
         """, (id_sucursal,))
         cecos = cursor.fetchall()
@@ -799,7 +799,7 @@ def obtener_cecos_riego():
         cursor.execute("""
             SELECT id, nombre
             FROM general_dim_ceco
-            WHERE id_cecotipo = 5 AND id_sucursal = %s
+            WHERE id_cecotipo = 5 AND id_sucursal = %s AND id_estado = 1
             ORDER BY nombre ASC
         """, (id_sucursal,))
         cecos = cursor.fetchall()
@@ -835,7 +835,7 @@ def obtener_cuarteles_por_actividad(id_actividad):
                 SELECT cu.id, cu.nombre, cu.id_variedad, cu.id_ceco
                 FROM general_dim_cuartel cu
                 JOIN general_dim_ceco ce ON cu.id_ceco = ce.id
-                WHERE ce.id_sucursal = %s AND cu.id_variedad = %s
+                WHERE ce.id_sucursal = %s AND ce.id_estado = 1 AND cu.id_variedad = %s
                 ORDER BY cu.nombre ASC
             """, (id_sucursal, id_variedad))
         else:
@@ -843,7 +843,7 @@ def obtener_cuarteles_por_actividad(id_actividad):
                 SELECT cu.id, cu.nombre, cu.id_variedad, cu.id_ceco
                 FROM general_dim_cuartel cu
                 JOIN general_dim_ceco ce ON cu.id_ceco = ce.id
-                WHERE ce.id_sucursal = %s
+                WHERE ce.id_sucursal = %s AND ce.id_estado = 1
                 ORDER BY cu.nombre ASC
             """, (id_sucursal,))
         cuarteles = cursor.fetchall()
@@ -874,7 +874,7 @@ def obtener_tiposinversion_por_actividad(id_actividad):
             FROM general_dim_tipoinversion ti
             JOIN general_dim_inversion i ON i.id_tipoinversion = ti.id
             JOIN general_dim_ceco c ON i.id_ceco = c.id
-            WHERE c.id_sucursal = %s
+            WHERE c.id_sucursal = %s AND c.id_estado = 1
             ORDER BY ti.nombre ASC
         """, (id_sucursal,))
         tipos = cursor.fetchall()
@@ -904,7 +904,7 @@ def obtener_inversiones_por_actividad(id_actividad, id_tipoinversion):
             SELECT i.id, i.nombre
             FROM general_dim_inversion i
             JOIN general_dim_ceco c ON i.id_ceco = c.id
-            WHERE i.id_tipoinversion = %s AND c.id_sucursal = %s
+            WHERE i.id_tipoinversion = %s AND c.id_sucursal = %s AND c.id_estado = 1
             ORDER BY i.nombre ASC
         """, (id_tipoinversion, id_sucursal))
         inversiones = cursor.fetchall()
@@ -934,7 +934,7 @@ def obtener_cecosinversion_por_actividad(id_actividad, id_tipoinversion, id_inve
             SELECT c.id, c.nombre
             FROM general_dim_ceco c
             JOIN general_dim_inversion i ON i.id_ceco = c.id
-            WHERE i.id = %s AND i.id_tipoinversion = %s AND c.id_sucursal = %s
+            WHERE i.id = %s AND i.id_tipoinversion = %s AND c.id_sucursal = %s AND c.id_estado = 1
             ORDER BY c.nombre ASC
         """, (id_inversion, id_tipoinversion, id_sucursal))
         cecos = cursor.fetchall()
@@ -979,7 +979,7 @@ def obtener_maquinarias_por_actividad_y_tipo(id_actividad, id_tipomaquinaria):
             SELECT m.id, m.nombre
             FROM general_dim_maquinaria m
             JOIN general_dim_ceco c ON m.id_ceco = c.id
-            WHERE m.id_maquinariatipo = %s AND c.id_sucursal = %s
+            WHERE m.id_maquinariatipo = %s AND c.id_sucursal = %s AND c.id_estado = 1
             ORDER BY m.nombre ASC
         """, (id_tipomaquinaria, id_sucursal))
         maquinarias = cursor.fetchall()
@@ -1009,7 +1009,7 @@ def obtener_cecosmaquinaria_por_actividad(id_actividad, id_tipomaquinaria, id_ma
             SELECT c.id, c.nombre
             FROM general_dim_ceco c
             JOIN general_dim_maquinaria m ON m.id_ceco = c.id
-            WHERE m.id = %s AND m.id_maquinariatipo = %s AND c.id_sucursal = %s
+            WHERE m.id = %s AND m.id_maquinariatipo = %s AND c.id_sucursal = %s AND c.id_estado = 1
             ORDER BY c.nombre ASC
         """, (id_maquinaria, id_tipomaquinaria, id_sucursal))
         cecos = cursor.fetchall()
@@ -1128,7 +1128,7 @@ def obtener_tiposmaquinaria_por_actividad(id_actividad):
             FROM general_dim_maquinariatipo mt
             JOIN general_dim_maquinaria m ON m.id_maquinariatipo = mt.id
             JOIN general_dim_ceco c ON m.id_ceco = c.id
-            WHERE c.id_sucursal = %s
+            WHERE c.id_sucursal = %s AND c.id_estado = 1
             ORDER BY mt.nombre ASC
         """, (id_sucursal,))
         tipos = cursor.fetchall()
@@ -1160,7 +1160,7 @@ def obtener_especies_por_actividad(id_actividad):
             JOIN general_dim_variedad v ON v.id_especie = e.id
             JOIN general_dim_cuartel c ON c.id_variedad = v.id
             JOIN general_dim_ceco ce ON c.id_ceco = ce.id
-            WHERE ce.id_sucursal = %s
+            WHERE ce.id_sucursal = %s AND ce.id_estado = 1
             ORDER BY e.nombre ASC
         """, (id_sucursal,))
         especies = cursor.fetchall()
@@ -1191,7 +1191,7 @@ def obtener_variedades_por_actividad(id_actividad, id_especie):
             FROM general_dim_variedad v
             JOIN general_dim_cuartel c ON c.id_variedad = v.id
             JOIN general_dim_ceco ce ON c.id_ceco = ce.id
-            WHERE v.id_especie = %s AND ce.id_sucursal = %s
+            WHERE v.id_especie = %s AND ce.id_sucursal = %s AND ce.id_estado = 1
             ORDER BY v.nombre ASC
         """, (id_especie, id_sucursal))
         variedades = cursor.fetchall()
@@ -1221,7 +1221,7 @@ def obtener_cuarteles_por_actividad_y_variedad(id_actividad, id_especie, id_vari
             SELECT c.id, c.nombre
             FROM general_dim_cuartel c
             JOIN general_dim_ceco ce ON c.id_ceco = ce.id
-            WHERE c.id_variedad = %s AND ce.id_sucursal = %s
+            WHERE c.id_variedad = %s AND ce.id_sucursal = %s AND ce.id_estado = 1
             ORDER BY c.nombre ASC
         """, (id_variedad, id_sucursal))
         cuarteles = cursor.fetchall()
@@ -1243,7 +1243,7 @@ def obtener_cecosproductivo_por_actividad(id_actividad, id_especie, id_variedad,
             SELECT c.id, c.nombre
             FROM general_dim_ceco c
             JOIN general_dim_cuartel cu ON cu.id_ceco = c.id
-            WHERE cu.id = %s
+            WHERE cu.id = %s AND c.id_estado = 1
         """, (id_cuartel,))
         cecos = cursor.fetchall()
         cursor.close()
@@ -1354,7 +1354,7 @@ def obtener_cecosriego_por_actividad(id_actividad, id_caseta, id_equipo, id_sect
             SELECT c.id, c.nombre
             FROM general_dim_ceco c
             JOIN riego_dim_sector s ON s.id_ceco = c.id
-            WHERE s.id = %s
+            WHERE s.id = %s AND c.id_estado = 1
         """, (id_sector,))
         ceco = cursor.fetchone()
         cursor.close()
@@ -1422,7 +1422,7 @@ def obtener_cecosriego(id_actividad):
             JOIN riego_dim_caseta ca ON cr.id_caseta = ca.id
             JOIN riego_dim_equipo e ON cr.id_equiporiego = e.id
             JOIN riego_dim_sector s ON cr.id_sectorriego = s.id
-            WHERE cr.id_actividad = %s
+            WHERE cr.id_actividad = %s AND c.id_estado = 1
             ORDER BY c.nombre ASC
         """, (id_actividad,))
         
