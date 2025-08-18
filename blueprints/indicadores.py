@@ -58,6 +58,7 @@ def obtener_resumen_horas_diarias_colaborador():
                 END
             WHERE v.id_sucursal = %s
                 AND v.id_usuario = %s
+                AND estado_actividad = 'CREADA'
         """
         params = [id_sucursal, usuario_id]
         
