@@ -133,7 +133,7 @@ def obtener_actividades():
             LEFT JOIN general_dim_ceco cea ON ca.id_ceco = cea.id
             WHERE a.id_usuario = %s AND a.id_sucursalactiva = %s AND a.id_estadoactividad = 1
             GROUP BY a.id
-            ORDER BY a.fecha DESC, a.hora_inicio DESC
+            ORDER BY l.nombre ASC, a.fecha DESC, a.hora_inicio DESC
         """, (usuario_id, id_sucursal))
 
         actividades = cursor.fetchall()
