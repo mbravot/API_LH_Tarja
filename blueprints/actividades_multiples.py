@@ -43,6 +43,7 @@ def obtener_actividades_multiples_por_sucursal(id_sucursal):
             AND a.id_tipotrabajador = 1  -- Propio
             AND a.id_contratista IS NULL  -- Para propios
             AND a.id_tiporendimiento = 1  -- Individual
+            AND a.id_tipoceco IN (1, 4)  -- Solo CECOs productivos y riego
             AND (a.id_estadoactividad = 1 OR a.id_estadoactividad = 2)  -- 1: creada, 2: revisada
             GROUP BY a.id
             ORDER BY a.fecha DESC
@@ -121,6 +122,7 @@ def obtener_actividades_multiples():
             AND a.id_tipotrabajador = 1  -- Propio
             AND a.id_contratista IS NULL  -- Para propios
             AND a.id_tiporendimiento = 1  -- Individual
+            AND a.id_tipoceco IN (1, 4)  -- Solo CECOs productivos y riego
             GROUP BY a.id
             ORDER BY l.nombre ASC, a.fecha DESC, a.hora_inicio DESC
         """, (usuario_id, id_sucursal))
