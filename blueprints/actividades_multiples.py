@@ -188,9 +188,9 @@ def crear_actividad_multiple():
         if not fecha or fecha in [None, '']:
             fecha = date.today().isoformat()
 
-        # Validar campos requeridos
+        # Validar campos requeridos (excluyendo los que son fijos)
         campos_requeridos = [
-            'id_tipotrabajador', 'id_contratista', 'id_labor', 'id_unidad', 'id_tipoceco', 'tarifa', 
+            'id_labor', 'id_unidad', 'id_tipoceco', 'tarifa', 
             'hora_inicio', 'hora_fin', 'id_estadoactividad'
         ]
         for campo in campos_requeridos:
@@ -206,6 +206,10 @@ def crear_actividad_multiple():
         id_tipoceco = data.get('id_tipoceco')
         if id_tipoceco not in [2, 5]:  # 2: Productivo, 5: Riego
             return jsonify({"error": "Las actividades múltiples solo permiten CECOs de tipo productivo (2) o riego (5)"}), 400
+
+        # Valores fijos para actividades múltiples
+        id_tipotrabajador = 1  # Propio
+        id_contratista = None  # Para propios
 
         # Generar ID único para la actividad
         cursor2 = conn.cursor()
@@ -224,8 +228,8 @@ def crear_actividad_multiple():
             fecha,
             usuario_id,
             id_sucursalactiva,
-            data['id_tipotrabajador'],
-            data['id_contratista'],
+            id_tipotrabajador,
+            id_contratista,
             data['id_tiporendimiento'],
             data['id_labor'],
             data['id_unidad'],
@@ -258,9 +262,9 @@ def editar_actividad_multiple(actividad_id):
         usuario_id = get_jwt_identity()
         data = request.json
 
-        # Validar campos requeridos
+        # Validar campos requeridos (excluyendo los que son fijos)
         campos_requeridos = [
-            'fecha', 'id_tipotrabajador', 'id_contratista', 'id_labor', 'id_unidad', 'id_tipoceco', 
+            'fecha', 'id_labor', 'id_unidad', 'id_tipoceco', 
             'tarifa', 'hora_inicio', 'hora_fin', 'id_estadoactividad'
         ]
         for campo in campos_requeridos:
@@ -288,13 +292,13 @@ def editar_actividad_multiple(actividad_id):
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        # Verificar que la actividad pertenece al usuario y tiene los valores fijos correctos
+        # Verificar que la actividad pertenece al usuario y es una actividad múltiple
         cursor.execute("""
             SELECT id FROM tarja_fact_actividad 
             WHERE id = %s AND id_usuario = %s 
             AND id_tipotrabajador = 1 
             AND id_contratista IS NULL 
-            AND id_tiporendimiento = 1
+            AND id_tiporendimiento = 3
         """, (actividad_id, usuario_id))
         
         if not cursor.fetchone():
@@ -315,7 +319,7 @@ def editar_actividad_multiple(actividad_id):
             WHERE id = %s AND id_usuario = %s
             AND id_tipotrabajador = 1 
             AND id_contratista IS NULL 
-            AND id_tiporendimiento = 1
+            AND id_tiporendimiento = 3
         """
         valores = (fecha, id_labor, id_unidad, hora_inicio,
                   hora_fin, id_estadoactividad, tarifa, id_tipoceco, 
@@ -346,13 +350,13 @@ def eliminar_actividad_multiple(actividad_id):
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Solo permitir eliminar si la actividad es del usuario y tiene los valores fijos correctos
+        # Solo permitir eliminar si la actividad es del usuario y es una actividad múltiple
         cursor.execute("""
             DELETE FROM tarja_fact_actividad 
             WHERE id = %s AND id_usuario = %s
             AND id_tipotrabajador = 1 
             AND id_contratista IS NULL 
-            AND id_tiporendimiento = 1
+            AND id_tiporendimiento = 3
         """, (actividad_id, usuario_id))
         
         conn.commit()
