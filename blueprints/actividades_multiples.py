@@ -43,7 +43,7 @@ def obtener_actividades_multiples_por_sucursal(id_sucursal):
             AND a.id_tipotrabajador = 1  -- Propio
             AND a.id_contratista IS NULL  -- Para propios
             AND a.id_tiporendimiento = 1  -- Individual
-            AND a.id_tipoceco IN (1, 4)  -- Solo CECOs productivos y riego
+            AND a.id_tipoceco IN (2, 5)  -- Solo CECOs productivos y riego
             AND (a.id_estadoactividad = 1 OR a.id_estadoactividad = 2)  -- 1: creada, 2: revisada
             GROUP BY a.id
             ORDER BY a.fecha DESC
@@ -122,7 +122,7 @@ def obtener_actividades_multiples():
             AND a.id_tipotrabajador = 1  -- Propio
             AND a.id_contratista IS NULL  -- Para propios
             AND a.id_tiporendimiento = 1  -- Individual
-            AND a.id_tipoceco IN (1, 4)  -- Solo CECOs productivos y riego
+            AND a.id_tipoceco IN (2, 5)  -- Solo CECOs productivos y riego
             GROUP BY a.id
             ORDER BY l.nombre ASC, a.fecha DESC, a.hora_inicio DESC
         """, (usuario_id, id_sucursal))
@@ -203,10 +203,10 @@ def crear_actividad_multiple():
             if campo not in data or data[campo] in [None, '']:
                 return jsonify({"error": f"El campo {campo} es requerido"}), 400
 
-        # Validar que el tipo de CECO sea productivo (1) o riego (4)
+        # Validar que el tipo de CECO sea productivo (2) o riego (5)
         id_tipoceco = data.get('id_tipoceco')
-        if id_tipoceco not in [1, 4]:  # 1: Productivo, 4: Riego
-            return jsonify({"error": "Las actividades múltiples solo permiten CECOs de tipo productivo (1) o riego (4)"}), 400
+        if id_tipoceco not in [2, 5]:  # 2: Productivo, 5: Riego
+            return jsonify({"error": "Las actividades múltiples solo permiten CECOs de tipo productivo (2) o riego (5)"}), 400
 
         # Valores fijos para actividades múltiples
         id_tipotrabajador = 1  # Propio
@@ -273,10 +273,10 @@ def editar_actividad_multiple(actividad_id):
             if campo not in data or data[campo] in [None, '']:
                 return jsonify({"error": f"El campo {campo} es requerido"}), 400
 
-        # Validar que el tipo de CECO sea productivo (1) o riego (4)
+        # Validar que el tipo de CECO sea productivo (2) o riego (5)
         id_tipoceco = data.get('id_tipoceco')
-        if id_tipoceco not in [1, 4]:  # 1: Productivo, 4: Riego
-            return jsonify({"error": "Las actividades múltiples solo permiten CECOs de tipo productivo (1) o riego (4)"}), 400
+        if id_tipoceco not in [2, 5]:  # 2: Productivo, 5: Riego
+            return jsonify({"error": "Las actividades múltiples solo permiten CECOs de tipo productivo (2) o riego (5)"}), 400
 
         fecha = data.get('fecha')
         id_labor = data.get('id_labor')
