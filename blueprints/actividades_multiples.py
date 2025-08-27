@@ -40,10 +40,7 @@ def obtener_actividades_multiples_por_sucursal(id_sucursal):
             LEFT JOIN general_dim_labor l ON a.id_labor = l.id
             LEFT JOIN tarja_dim_tiporendimiento tr ON a.id_tiporendimiento = tr.id
             WHERE a.id_sucursalactiva = %s
-            AND a.id_tipotrabajador = 1  -- Propio
-            AND a.id_contratista IS NULL  -- Para propios
-            AND a.id_tiporendimiento = 1  -- Individual
-            AND a.id_tipoceco IN (2, 5)  -- Solo CECOs productivos y riego
+            AND a.id_tiporendimiento = 3  -- MÚLTIPLE
             AND (a.id_estadoactividad = 1 OR a.id_estadoactividad = 2)  -- 1: creada, 2: revisada
             GROUP BY a.id
             ORDER BY a.fecha DESC
@@ -119,10 +116,7 @@ def obtener_actividades_multiples():
             WHERE a.id_usuario = %s 
             AND a.id_sucursalactiva = %s 
             AND a.id_estadoactividad = 1
-            AND a.id_tipotrabajador = 1  -- Propio
-            AND a.id_contratista IS NULL  -- Para propios
-            AND a.id_tiporendimiento = 1  -- Individual
-            AND a.id_tipoceco IN (2, 5)  -- Solo CECOs productivos y riego
+            AND a.id_tiporendimiento = 3  -- MÚLTIPLE
             GROUP BY a.id
             ORDER BY l.nombre ASC, a.fecha DESC, a.hora_inicio DESC
         """, (usuario_id, id_sucursal))
@@ -194,24 +188,24 @@ def crear_actividad_multiple():
         if not fecha or fecha in [None, '']:
             fecha = date.today().isoformat()
 
-        # Validar campos requeridos (excluyendo los que son fijos)
+        # Validar campos requeridos
         campos_requeridos = [
-            'id_labor', 'id_unidad', 'id_tipoceco', 'tarifa', 
+            'id_tipotrabajador', 'id_contratista', 'id_labor', 'id_unidad', 'id_tipoceco', 'tarifa', 
             'hora_inicio', 'hora_fin', 'id_estadoactividad'
         ]
         for campo in campos_requeridos:
             if campo not in data or data[campo] in [None, '']:
                 return jsonify({"error": f"El campo {campo} es requerido"}), 400
 
+        # Validar que el tipo de rendimiento sea múltiple (3)
+        id_tiporendimiento = data.get('id_tiporendimiento')
+        if id_tiporendimiento != 3:
+            return jsonify({"error": "Las actividades múltiples deben tener id_tiporendimiento = 3"}), 400
+
         # Validar que el tipo de CECO sea productivo (2) o riego (5)
         id_tipoceco = data.get('id_tipoceco')
         if id_tipoceco not in [2, 5]:  # 2: Productivo, 5: Riego
             return jsonify({"error": "Las actividades múltiples solo permiten CECOs de tipo productivo (2) o riego (5)"}), 400
-
-        # Valores fijos para actividades múltiples
-        id_tipotrabajador = 1  # Propio
-        id_contratista = None  # Para propios
-        id_tiporendimiento = 1  # Individual
 
         # Generar ID único para la actividad
         cursor2 = conn.cursor()
@@ -230,9 +224,9 @@ def crear_actividad_multiple():
             fecha,
             usuario_id,
             id_sucursalactiva,
-            id_tipotrabajador,
-            id_contratista,
-            id_tiporendimiento,
+            data['id_tipotrabajador'],
+            data['id_contratista'],
+            data['id_tiporendimiento'],
             data['id_labor'],
             data['id_unidad'],
             data['id_tipoceco'],
@@ -264,14 +258,19 @@ def editar_actividad_multiple(actividad_id):
         usuario_id = get_jwt_identity()
         data = request.json
 
-        # Validar campos requeridos (excluyendo los que son fijos)
+        # Validar campos requeridos
         campos_requeridos = [
-            'fecha', 'id_labor', 'id_unidad', 'id_tipoceco', 
+            'fecha', 'id_tipotrabajador', 'id_contratista', 'id_labor', 'id_unidad', 'id_tipoceco', 
             'tarifa', 'hora_inicio', 'hora_fin', 'id_estadoactividad'
         ]
         for campo in campos_requeridos:
             if campo not in data or data[campo] in [None, '']:
                 return jsonify({"error": f"El campo {campo} es requerido"}), 400
+
+        # Validar que el tipo de rendimiento sea múltiple (3)
+        id_tiporendimiento = data.get('id_tiporendimiento')
+        if id_tiporendimiento != 3:
+            return jsonify({"error": "Las actividades múltiples deben tener id_tiporendimiento = 3"}), 400
 
         # Validar que el tipo de CECO sea productivo (2) o riego (5)
         id_tipoceco = data.get('id_tipoceco')
