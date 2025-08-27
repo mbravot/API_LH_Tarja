@@ -86,7 +86,7 @@ def obtener_actividades_multiples():
             return jsonify({"error": "No se encontró sucursal activa para el usuario"}), 400
         id_sucursal = usuario['id_sucursalactiva']
 
-        # Obtener actividades múltiples del usuario con valores fijos
+        # Obtener actividades múltiples del usuario con valores fijos (solo CECOs productivos y riego)
         cursor.execute("""
             SELECT 
                 a.*,
@@ -99,14 +99,8 @@ def obtener_actividades_multiples():
                 s.nombre as nombre_sucursal,
                 -- CECOs Productivos
                 GROUP_CONCAT(DISTINCT CONCAT(cp.id_ceco, ':', ce.nombre) SEPARATOR '|') as cecos_productivos,
-                -- CECOs de Inversión
-                GROUP_CONCAT(DISTINCT CONCAT(ci.id_ceco, ':', cei.nombre) SEPARATOR '|') as cecos_inversion,
-                -- CECOs de Maquinaria
-                GROUP_CONCAT(DISTINCT CONCAT(cm.id_ceco, ':', cem.nombre) SEPARATOR '|') as cecos_maquinaria,
                 -- CECOs de Riego
-                GROUP_CONCAT(DISTINCT CONCAT(cr.id_ceco, ':', cer.nombre) SEPARATOR '|') as cecos_riego,
-                -- CECOs Administrativos
-                GROUP_CONCAT(DISTINCT CONCAT(ca.id_ceco, ':', cea.nombre) SEPARATOR '|') as cecos_administrativos
+                GROUP_CONCAT(DISTINCT CONCAT(cr.id_ceco, ':', cer.nombre) SEPARATOR '|') as cecos_riego
             FROM tarja_fact_actividad a
             LEFT JOIN general_dim_labor l ON a.id_labor = l.id
             LEFT JOIN tarja_dim_unidad u ON a.id_unidad = u.id
@@ -118,18 +112,9 @@ def obtener_actividades_multiples():
             -- Joins para CECOs Productivos
             LEFT JOIN tarja_fact_cecoproductivo cp ON a.id = cp.id_actividad
             LEFT JOIN general_dim_ceco ce ON cp.id_ceco = ce.id
-            -- Joins para CECOs de Inversión
-            LEFT JOIN tarja_fact_cecoinversion ci ON a.id = ci.id_actividad
-            LEFT JOIN general_dim_ceco cei ON ci.id_ceco = cei.id
-            -- Joins para CECOs de Maquinaria
-            LEFT JOIN tarja_fact_cecomaquinaria cm ON a.id = cm.id_actividad
-            LEFT JOIN general_dim_ceco cem ON cm.id_ceco = cem.id
             -- Joins para CECOs de Riego
             LEFT JOIN tarja_fact_cecoriego cr ON a.id = cr.id_actividad
             LEFT JOIN general_dim_ceco cer ON cr.id_ceco = cer.id
-            -- Joins para CECOs Administrativos
-            LEFT JOIN tarja_fact_cecoadministrativo ca ON a.id = ca.id_actividad
-            LEFT JOIN general_dim_ceco cea ON ca.id_ceco = cea.id
             WHERE a.id_usuario = %s 
             AND a.id_sucursalactiva = %s 
             AND a.id_estadoactividad = 1
@@ -156,7 +141,7 @@ def obtener_actividades_multiples():
             if isinstance(actividad['fecha'], (date, datetime)):
                 actividad['fecha'] = actividad['fecha'].strftime('%Y-%m-%d')
 
-            # Convertir los CECOs concatenados en arrays de objetos
+            # Convertir los CECOs concatenados en arrays de objetos (solo productivos y riego)
             if actividad['cecos_productivos']:
                 actividad['cecos_productivos'] = [
                     {'id': int(x.split(':')[0]), 'nombre': x.split(':')[1]} 
@@ -164,22 +149,6 @@ def obtener_actividades_multiples():
                 ]
             else:
                 actividad['cecos_productivos'] = []
-
-            if actividad['cecos_inversion']:
-                actividad['cecos_inversion'] = [
-                    {'id': int(x.split(':')[0]), 'nombre': x.split(':')[1]} 
-                    for x in actividad['cecos_inversion'].split('|')
-                ]
-            else:
-                actividad['cecos_inversion'] = []
-
-            if actividad['cecos_maquinaria']:
-                actividad['cecos_maquinaria'] = [
-                    {'id': int(x.split(':')[0]), 'nombre': x.split(':')[1]} 
-                    for x in actividad['cecos_maquinaria'].split('|')
-                ]
-            else:
-                actividad['cecos_maquinaria'] = []
 
             if actividad['cecos_riego']:
                 actividad['cecos_riego'] = [
@@ -189,13 +158,10 @@ def obtener_actividades_multiples():
             else:
                 actividad['cecos_riego'] = []
 
-            if actividad['cecos_administrativos']:
-                actividad['cecos_administrativos'] = [
-                    {'id': int(x.split(':')[0]), 'nombre': x.split(':')[1]} 
-                    for x in actividad['cecos_administrativos'].split('|')
-                ]
-            else:
-                actividad['cecos_administrativos'] = []
+            # Inicializar arrays vacíos para CECOs que no aplican en actividades múltiples
+            actividad['cecos_inversion'] = []
+            actividad['cecos_maquinaria'] = []
+            actividad['cecos_administrativos'] = []
 
         return jsonify(actividades), 200
 
@@ -234,6 +200,11 @@ def crear_actividad_multiple():
         for campo in campos_requeridos:
             if campo not in data or data[campo] in [None, '']:
                 return jsonify({"error": f"El campo {campo} es requerido"}), 400
+
+        # Validar que el tipo de CECO sea productivo (1) o riego (4)
+        id_tipoceco = data.get('id_tipoceco')
+        if id_tipoceco not in [1, 4]:  # 1: Productivo, 4: Riego
+            return jsonify({"error": "Las actividades múltiples solo permiten CECOs de tipo productivo (1) o riego (4)"}), 400
 
         # Valores fijos para actividades múltiples
         id_tipotrabajador = 1  # Propio
@@ -300,6 +271,11 @@ def editar_actividad_multiple(actividad_id):
             if campo not in data or data[campo] in [None, '']:
                 return jsonify({"error": f"El campo {campo} es requerido"}), 400
 
+        # Validar que el tipo de CECO sea productivo (1) o riego (4)
+        id_tipoceco = data.get('id_tipoceco')
+        if id_tipoceco not in [1, 4]:  # 1: Productivo, 4: Riego
+            return jsonify({"error": "Las actividades múltiples solo permiten CECOs de tipo productivo (1) o riego (4)"}), 400
+
         fecha = data.get('fecha')
         id_labor = data.get('id_labor')
         id_unidad = data.get('id_unidad')
@@ -307,7 +283,6 @@ def editar_actividad_multiple(actividad_id):
         hora_fin = data.get('hora_fin')
         id_estadoactividad = data.get('id_estadoactividad')
         tarifa = data.get('tarifa')
-        id_tipoceco = data.get('id_tipoceco')
 
         conn = get_db_connection()
         cursor = conn.cursor()
