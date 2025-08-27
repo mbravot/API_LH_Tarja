@@ -43,6 +43,7 @@ def obtener_actividades_por_sucursal(id_sucursal):
             LEFT JOIN tarja_dim_tiporendimiento tr ON a.id_tiporendimiento = tr.id
             WHERE a.id_sucursalactiva = %s
             AND (a.id_estadoactividad = 1 OR a.id_estadoactividad = 2)  -- 1: creada, 2: revisada
+            AND NOT (a.id_tipotrabajador = 1 AND a.id_contratista IS NULL AND a.id_tiporendimiento = 1 AND a.id_tipoceco IN (2, 5))  -- Excluir actividades múltiples
             GROUP BY a.id
             ORDER BY a.fecha DESC
         """
@@ -132,6 +133,7 @@ def obtener_actividades():
             LEFT JOIN tarja_fact_cecoadministrativo ca ON a.id = ca.id_actividad
             LEFT JOIN general_dim_ceco cea ON ca.id_ceco = cea.id
             WHERE a.id_usuario = %s AND a.id_sucursalactiva = %s AND a.id_estadoactividad = 1
+            AND NOT (a.id_tipotrabajador = 1 AND a.id_contratista IS NULL AND a.id_tiporendimiento = 1 AND a.id_tipoceco IN (2, 5))  -- Excluir actividades múltiples
             GROUP BY a.id
             ORDER BY l.nombre ASC, a.fecha DESC, a.hora_inicio DESC
         """, (usuario_id, id_sucursal))
