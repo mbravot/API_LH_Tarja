@@ -408,10 +408,10 @@ def crear_ceco_riego():
         cursor.execute("""
             SELECT 
                 s.id_ceco,
-                s.id_equiporiego,
+                s.id_equipo,
                 e.id_caseta
             FROM riego_dim_sector s
-            LEFT JOIN riego_dim_equipo e ON s.id_equiporiego = e.id
+            LEFT JOIN riego_dim_equipo e ON s.id_equipo = e.id
             WHERE s.id = %s
         """, (id_sectorriego,))
         
@@ -451,7 +451,7 @@ def crear_ceco_riego():
         """, (
             id_actividad,
             sector_info['id_caseta'],
-            sector_info['id_equiporiego'],
+            sector_info['id_equipo'],
             id_sectorriego,
             sector_info['id_ceco']
         ))
@@ -466,7 +466,7 @@ def crear_ceco_riego():
             "data": {
                 "id_actividad": id_actividad,
                 "id_sectorriego": id_sectorriego,
-                "id_equiporiego": sector_info['id_equiporiego'],
+                "id_equiporiego": sector_info['id_equipo'],
                 "id_caseta": sector_info['id_caseta'],
                 "id_ceco": sector_info['id_ceco']
             }
@@ -490,14 +490,14 @@ def obtener_sectores_riego():
                 s.nombre as nombre_sector,
                 s.id_ceco,
                 c.nombre as nombre_ceco,
-                s.id_equiporiego,
+                s.id_equipo,
                 e.nombre as nombre_equipo,
                 e.id_caseta,
                 ca.nombre as nombre_caseta
             FROM riego_dim_sector s
             LEFT JOIN general_dim_ceco c ON s.id_ceco = c.id
-            LEFT JOIN riego_dim_equipo e ON s.id_equiporiego = e.id
-            LEFT JOIN riego_dim_caseta ca ON e.id_caseta = ca.id
+            LEFT JOIN riego_dim_equipo e ON s.id_equipo = e.id
+            LEFT JOIN general_dim_maquinaria ca ON e.id_caseta = ca.id
             WHERE c.id_tipoceco = 5  -- Solo CECOs de tipo riego
             ORDER BY s.nombre ASC
         """)
@@ -843,6 +843,118 @@ def crear_ceco_productivo_multiple():
         return jsonify({
             "success": True,
             "message": f"Se crearon {len(registros_creados)} registros de CECO productivo",
+            "registros_creados": registros_creados,
+            "registros_existentes": registros_existentes,
+            "total_creados": len(registros_creados),
+            "total_existentes": len(registros_existentes)
+        }), 201
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# 🚀 Endpoint para crear múltiples registros de CECO de riego (selección múltiple de sectores)
+@actividades_multiples_bp.route('/ceco-riego-multiple', methods=['POST'])
+@jwt_required()
+def crear_ceco_riego_multiple():
+    try:
+        data = request.json
+        usuario_id = get_jwt_identity()
+
+        # Validar campos requeridos
+        campos_requeridos = ['id_actividad', 'id_sectoresriego']
+        for campo in campos_requeridos:
+            if campo not in data or data[campo] in [None, '']:
+                return jsonify({"error": f"El campo {campo} es requerido"}), 400
+
+        id_actividad = data['id_actividad']
+        id_sectoresriego = data['id_sectoresriego']
+
+        # Validar que id_sectoresriego sea una lista
+        if not isinstance(id_sectoresriego, list) or len(id_sectoresriego) == 0:
+            return jsonify({"error": "id_sectoresriego debe ser una lista no vacía"}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # Verificar que la actividad pertenece al usuario y es una actividad múltiple
+        cursor.execute("""
+            SELECT id FROM tarja_fact_actividad 
+            WHERE id = %s AND id_usuario = %s 
+            AND id_tipotrabajador = 1 
+            AND id_contratista IS NULL 
+            AND id_tiporendimiento = 3
+        """, (id_actividad, usuario_id))
+        
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Actividad múltiple no encontrada o no tienes permiso para modificarla"}), 404
+
+        registros_creados = []
+        registros_existentes = []
+
+        for id_sectorriego in id_sectoresriego:
+            # Obtener información del sector de riego
+            cursor.execute("""
+                SELECT 
+                    s.id_ceco,
+                    s.id_equipo,
+                    e.id_caseta
+                FROM riego_dim_sector s
+                LEFT JOIN riego_dim_equipo e ON s.id_equipo = e.id
+                WHERE s.id = %s
+            """, (id_sectorriego,))
+            
+            sector_info = cursor.fetchone()
+            if not sector_info:
+                continue
+
+            # Verificar que el CECO sea de tipo riego
+            cursor.execute("""
+                SELECT id FROM general_dim_ceco 
+                WHERE id = %s AND id_tipoceco = 5
+            """, (sector_info['id_ceco'],))
+            
+            if not cursor.fetchone():
+                continue
+
+            # Verificar si ya existe el registro
+            cursor.execute("""
+                SELECT id FROM tarja_fact_cecoriego 
+                WHERE id_actividad = %s AND id_sectorriego = %s
+            """, (id_actividad, id_sectorriego))
+            
+            if cursor.fetchone():
+                registros_existentes.append(id_sectorriego)
+                continue
+
+            # Insertar el registro
+            cursor.execute("""
+                INSERT INTO tarja_fact_cecoriego (
+                    id_actividad, id_caseta, id_equiporiego, id_sectorriego, id_ceco
+                ) VALUES (%s, %s, %s, %s, %s)
+            """, (
+                id_actividad,
+                sector_info['id_caseta'],
+                sector_info['id_equipo'],
+                id_sectorriego,
+                sector_info['id_ceco']
+            ))
+
+            registros_creados.append({
+                "id_sectorriego": id_sectorriego,
+                "id_equiporiego": sector_info['id_equipo'],
+                "id_caseta": sector_info['id_caseta'],
+                "id_ceco": sector_info['id_ceco']
+            })
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "message": f"Se crearon {len(registros_creados)} registros de CECO de riego",
             "registros_creados": registros_creados,
             "registros_existentes": registros_existentes,
             "total_creados": len(registros_creados),
