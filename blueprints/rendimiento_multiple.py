@@ -135,7 +135,7 @@ def crear_rendimiento():
         usuario_id = get_jwt_identity()
 
         # Validar campos requeridos
-        campos_requeridos = ['id_actividad', 'id_colaborador', 'rendimiento', 'horas_trabajadas']
+        campos_requeridos = ['id_actividad', 'id_colaborador', 'rendimiento', 'id_cecos']
         for campo in campos_requeridos:
             if campo not in data or data[campo] in [None, '']:
                 return jsonify({"error": f"El campo {campo} es requerido"}), 400
@@ -143,27 +143,48 @@ def crear_rendimiento():
         id_actividad = data['id_actividad']
         id_colaborador = data['id_colaborador']
         rendimiento = data['rendimiento']
-        horas_trabajadas = data['horas_trabajadas']
-        horas_extras = data.get('horas_extras', 0)
-        id_bono = data.get('id_bono')
-        id_ceco = data.get('id_ceco')
+        id_cecos = data['id_cecos']  # Array de CECOs
+
+        # Validar que id_cecos sea una lista
+        if not isinstance(id_cecos, list) or len(id_cecos) == 0:
+            return jsonify({"error": "id_cecos debe ser una lista no vacía"}), 400
 
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
         # Verificar que la actividad pertenece al usuario y es una actividad múltiple
+        # También obtener las horas de inicio y fin para calcular horas trabajadas
         cursor.execute("""
-            SELECT id FROM tarja_fact_actividad 
+            SELECT id, hora_inicio, hora_fin FROM tarja_fact_actividad 
             WHERE id = %s AND id_usuario = %s 
             AND id_tipotrabajador = 1 
             AND id_contratista IS NULL 
             AND id_tiporendimiento = 3
         """, (id_actividad, usuario_id))
         
-        if not cursor.fetchone():
+        actividad = cursor.fetchone()
+        if not actividad:
             cursor.close()
             conn.close()
             return jsonify({"error": "Actividad múltiple no encontrada o no tienes permiso para modificarla"}), 404
+
+        # Calcular horas trabajadas automáticamente
+        hora_inicio = actividad['hora_inicio']
+        hora_fin = actividad['hora_fin']
+        
+        # Convertir a timedelta para calcular la diferencia
+        if isinstance(hora_inicio, str):
+            hora_inicio = datetime.strptime(hora_inicio, '%H:%M:%S').time()
+        if isinstance(hora_fin, str):
+            hora_fin = datetime.strptime(hora_fin, '%H:%M:%S').time()
+        
+        # Calcular diferencia en horas
+        inicio_dt = datetime.combine(date.today(), hora_inicio)
+        fin_dt = datetime.combine(date.today(), hora_fin)
+        if fin_dt < inicio_dt:  # Si pasa de medianoche
+            fin_dt += timedelta(days=1)
+        
+        horas_trabajadas = (fin_dt - inicio_dt).total_seconds() / 3600
 
         # Verificar que el colaborador existe
         cursor.execute("""
@@ -176,38 +197,58 @@ def crear_rendimiento():
             conn.close()
             return jsonify({"error": "Colaborador no encontrado"}), 404
 
-        # Verificar que no exista ya un rendimiento para esta actividad y colaborador
-        cursor.execute("""
-            SELECT id FROM tarja_fact_rendimientopropio 
-            WHERE id_actividad = %s AND id_colaborador = %s
-        """, (id_actividad, id_colaborador))
-        
-        if cursor.fetchone():
-            cursor.close()
-            conn.close()
-            return jsonify({"error": "Ya existe un rendimiento para esta actividad y colaborador"}), 400
+        # Verificar que los CECOs existen y pertenecen a la actividad
+        for id_ceco in id_cecos:
+            # Verificar que el CECO existe
+            cursor.execute("""
+                SELECT id FROM general_dim_ceco 
+                WHERE id = %s
+            """, (id_ceco,))
+            
+            if not cursor.fetchone():
+                cursor.close()
+                conn.close()
+                return jsonify({"error": f"CECO {id_ceco} no encontrado"}), 404
 
-        # Generar ID único para el rendimiento
+        # Crear un rendimiento por cada CECO seleccionado
+        rendimientos_creados = []
         cursor2 = conn.cursor()
-        cursor2.execute("SELECT UUID()")
-        id_rendimiento = cursor2.fetchone()[0]
 
-        # Insertar el rendimiento
-        cursor2.execute("""
-            INSERT INTO tarja_fact_rendimientopropio (
-                id, id_actividad, id_colaborador, rendimiento, 
-                horas_trabajadas, horas_extras, id_bono, id_ceco
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-        """, (
-            id_rendimiento,
-            id_actividad,
-            id_colaborador,
-            rendimiento,
-            horas_trabajadas,
-            horas_extras,
-            id_bono,
-            id_ceco
-        ))
+        for id_ceco in id_cecos:
+            # Verificar que no exista ya un rendimiento para esta actividad, colaborador y CECO
+            cursor.execute("""
+                SELECT id FROM tarja_fact_rendimientopropio 
+                WHERE id_actividad = %s AND id_colaborador = %s AND id_ceco = %s
+            """, (id_actividad, id_colaborador, id_ceco))
+            
+            if cursor.fetchone():
+                continue  # Saltar si ya existe
+
+            # Generar ID único para el rendimiento
+            cursor2.execute("SELECT UUID()")
+            id_rendimiento = cursor2.fetchone()[0]
+
+            # Insertar el rendimiento
+            cursor2.execute("""
+                INSERT INTO tarja_fact_rendimientopropio (
+                    id, id_actividad, id_colaborador, rendimiento, 
+                    horas_trabajadas, horas_extras, id_bono, id_ceco
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                id_rendimiento,
+                id_actividad,
+                id_colaborador,
+                rendimiento,
+                horas_trabajadas,
+                0,  # horas_extras = 0
+                None,  # id_bono = NULL
+                id_ceco
+            ))
+
+            rendimientos_creados.append({
+                "id_rendimiento": id_rendimiento,
+                "id_ceco": id_ceco
+            })
 
         conn.commit()
         cursor.close()
@@ -216,8 +257,9 @@ def crear_rendimiento():
 
         return jsonify({
             "success": True,
-            "message": "Rendimiento propio creado correctamente",
-            "id_rendimiento": id_rendimiento
+            "message": f"Rendimientos creados correctamente para {len(rendimientos_creados)} CECOs",
+            "rendimientos_creados": rendimientos_creados,
+            "horas_trabajadas_calculadas": horas_trabajadas
         }), 201
 
     except Exception as e:
@@ -393,6 +435,68 @@ def obtener_bonos():
         conn.close()
 
         return jsonify(bonos), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# 🚀 Endpoint para obtener CECOs disponibles de una actividad múltiple
+@rendimiento_multiple_bp.route('/cecos-actividad/<string:id_actividad>', methods=['GET'])
+@jwt_required()
+def obtener_cecos_actividad(id_actividad):
+    try:
+        usuario_id = get_jwt_identity()
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # Verificar que la actividad pertenece al usuario y es una actividad múltiple
+        cursor.execute("""
+            SELECT id FROM tarja_fact_actividad 
+            WHERE id = %s AND id_usuario = %s 
+            AND id_tipotrabajador = 1 
+            AND id_contratista IS NULL 
+            AND id_tiporendimiento = 3
+        """, (id_actividad, usuario_id))
+        
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Actividad múltiple no encontrada o no tienes permiso para acceder"}), 404
+
+        # Obtener CECOs de riego asociados a la actividad
+        cursor.execute("""
+            SELECT 
+                c.id as id_ceco,
+                c.nombre as nombre_ceco,
+                'riego' as tipo_ceco
+            FROM tarja_fact_cecoriego tcr
+            LEFT JOIN general_dim_ceco c ON tcr.id_ceco = c.id
+            WHERE tcr.id_actividad = %s
+            ORDER BY c.nombre ASC
+        """, (id_actividad,))
+
+        cecos_riego = cursor.fetchall()
+
+        # Obtener CECOs productivos asociados a la actividad
+        cursor.execute("""
+            SELECT 
+                c.id as id_ceco,
+                c.nombre as nombre_ceco,
+                'productivo' as tipo_ceco
+            FROM tarja_fact_cecoproductivo tcp
+            LEFT JOIN general_dim_ceco c ON tcp.id_ceco = c.id
+            WHERE tcp.id_actividad = %s
+            ORDER BY c.nombre ASC
+        """, (id_actividad,))
+
+        cecos_productivos = cursor.fetchall()
+
+        # Combinar ambos tipos de CECOs
+        cecos_disponibles = cecos_riego + cecos_productivos
+
+        cursor.close()
+        conn.close()
+
+        return jsonify(cecos_disponibles), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
