@@ -369,3 +369,188 @@ def eliminar_actividad_multiple(actividad_id):
         return jsonify({"message": "Actividad múltiple eliminada correctamente"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# 🚀 Endpoint para crear un registro de CECO de riego para actividades múltiples
+@actividades_multiples_bp.route('/ceco-riego', methods=['POST'])
+@jwt_required()
+def crear_ceco_riego():
+    try:
+        data = request.json
+        usuario_id = get_jwt_identity()
+
+        # Validar campos requeridos
+        campos_requeridos = ['id_actividad', 'id_sectorriego']
+        for campo in campos_requeridos:
+            if campo not in data or data[campo] in [None, '']:
+                return jsonify({"error": f"El campo {campo} es requerido"}), 400
+
+        id_actividad = data['id_actividad']
+        id_sectorriego = data['id_sectorriego']
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # Verificar que la actividad pertenece al usuario y es una actividad múltiple
+        cursor.execute("""
+            SELECT id FROM tarja_fact_actividad 
+            WHERE id = %s AND id_usuario = %s 
+            AND id_tipotrabajador = 1 
+            AND id_contratista IS NULL 
+            AND id_tiporendimiento = 3
+        """, (id_actividad, usuario_id))
+        
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Actividad múltiple no encontrada o no tienes permiso para modificarla"}), 404
+
+        # Obtener información del sector de riego para autocompletar campos
+        cursor.execute("""
+            SELECT 
+                s.id_ceco,
+                s.id_equiporiego,
+                e.id_caseta
+            FROM riego_dim_sector s
+            LEFT JOIN riego_dim_equipo e ON s.id_equiporiego = e.id
+            WHERE s.id = %s
+        """, (id_sectorriego,))
+        
+        sector_info = cursor.fetchone()
+        if not sector_info:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Sector de riego no encontrado"}), 404
+
+        # Verificar que el CECO del sector sea de tipo riego (5)
+        cursor.execute("""
+            SELECT id FROM general_dim_ceco 
+            WHERE id = %s AND id_tipoceco = 5
+        """, (sector_info['id_ceco'],))
+        
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "El CECO del sector no es de tipo riego"}), 400
+
+        # Verificar que no exista ya un registro para esta actividad y sector
+        cursor.execute("""
+            SELECT id FROM tarja_fact_cecoriego 
+            WHERE id_actividad = %s AND id_sectorriego = %s
+        """, (id_actividad, id_sectorriego))
+        
+        if cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Ya existe un registro de CECO de riego para esta actividad y sector"}), 400
+
+        # Insertar el registro de CECO de riego
+        cursor.execute("""
+            INSERT INTO tarja_fact_cecoriego (
+                id_actividad, id_caseta, id_equiporiego, id_sectorriego, id_ceco
+            ) VALUES (%s, %s, %s, %s, %s)
+        """, (
+            id_actividad,
+            sector_info['id_caseta'],
+            sector_info['id_equiporiego'],
+            id_sectorriego,
+            sector_info['id_ceco']
+        ))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "message": "CECO de riego registrado correctamente",
+            "data": {
+                "id_actividad": id_actividad,
+                "id_sectorriego": id_sectorriego,
+                "id_equiporiego": sector_info['id_equiporiego'],
+                "id_caseta": sector_info['id_caseta'],
+                "id_ceco": sector_info['id_ceco']
+            }
+        }), 201
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# 🚀 Endpoint para obtener sectores de riego disponibles
+@actividades_multiples_bp.route('/sectores-riego', methods=['GET'])
+@jwt_required()
+def obtener_sectores_riego():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # Obtener sectores de riego con información completa
+        cursor.execute("""
+            SELECT 
+                s.id as id_sectorriego,
+                s.nombre as nombre_sector,
+                s.id_ceco,
+                c.nombre as nombre_ceco,
+                s.id_equiporiego,
+                e.nombre as nombre_equipo,
+                e.id_caseta,
+                ca.nombre as nombre_caseta
+            FROM riego_dim_sector s
+            LEFT JOIN general_dim_ceco c ON s.id_ceco = c.id
+            LEFT JOIN riego_dim_equipo e ON s.id_equiporiego = e.id
+            LEFT JOIN riego_dim_caseta ca ON e.id_caseta = ca.id
+            WHERE c.id_tipoceco = 5  -- Solo CECOs de tipo riego
+            ORDER BY s.nombre ASC
+        """)
+
+        sectores = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        return jsonify(sectores), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# 🚀 Endpoint para eliminar un registro de CECO de riego
+@actividades_multiples_bp.route('/ceco-riego/<string:id_actividad>/<string:id_sectorriego>', methods=['DELETE'])
+@jwt_required()
+def eliminar_ceco_riego(id_actividad, id_sectorriego):
+    try:
+        usuario_id = get_jwt_identity()
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Verificar que la actividad pertenece al usuario y es una actividad múltiple
+        cursor.execute("""
+            SELECT id FROM tarja_fact_actividad 
+            WHERE id = %s AND id_usuario = %s 
+            AND id_tipotrabajador = 1 
+            AND id_contratista IS NULL 
+            AND id_tiporendimiento = 3
+        """, (id_actividad, usuario_id))
+        
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Actividad múltiple no encontrada o no tienes permiso para modificarla"}), 404
+
+        # Eliminar el registro de CECO de riego
+        cursor.execute("""
+            DELETE FROM tarja_fact_cecoriego 
+            WHERE id_actividad = %s AND id_sectorriego = %s
+        """, (id_actividad, id_sectorriego))
+
+        conn.commit()
+        
+        if cursor.rowcount == 0:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Registro de CECO de riego no encontrado"}), 404
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({"message": "CECO de riego eliminado correctamente"}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
