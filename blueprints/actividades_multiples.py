@@ -480,10 +480,20 @@ def crear_ceco_riego():
 @jwt_required()
 def obtener_sectores_riego():
     try:
+        usuario_id = get_jwt_identity()
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # Obtener sectores de riego con información completa
+        # Obtener sucursal activa del usuario
+        cursor.execute("SELECT id_sucursalactiva FROM general_dim_usuario WHERE id = %s", (usuario_id,))
+        usuario = cursor.fetchone()
+        if not usuario or not usuario['id_sucursalactiva']:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "No se encontró sucursal activa para el usuario"}), 400
+        id_sucursal = usuario['id_sucursalactiva']
+
+        # Obtener sectores de riego con información completa filtrados por sucursal
         cursor.execute("""
             SELECT 
                 s.id as id_sectorriego,
@@ -498,8 +508,9 @@ def obtener_sectores_riego():
             LEFT JOIN general_dim_ceco c ON s.id_ceco = c.id
             LEFT JOIN riego_dim_equipo e ON s.id_equipo = e.id
             LEFT JOIN general_dim_maquinaria ca ON e.id_caseta = ca.id
+            WHERE c.id_sucursal = %s
             ORDER BY s.nombre ASC
-        """)
+        """, (id_sucursal,))
 
         sectores = cursor.fetchall()
         cursor.close()
@@ -664,10 +675,20 @@ def crear_ceco_productivo():
 @jwt_required()
 def obtener_cuarteles_productivos():
     try:
+        usuario_id = get_jwt_identity()
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
 
-        # Obtener cuarteles productivos con información completa
+        # Obtener sucursal activa del usuario
+        cursor.execute("SELECT id_sucursalactiva FROM general_dim_usuario WHERE id = %s", (usuario_id,))
+        usuario = cursor.fetchone()
+        if not usuario or not usuario['id_sucursalactiva']:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "No se encontró sucursal activa para el usuario"}), 400
+        id_sucursal = usuario['id_sucursalactiva']
+
+        # Obtener cuarteles productivos con información completa filtrados por sucursal
         cursor.execute("""
             SELECT 
                 c.id as id_cuartel,
@@ -682,9 +703,10 @@ def obtener_cuarteles_productivos():
             LEFT JOIN general_dim_ceco ce ON c.id_ceco = ce.id
             LEFT JOIN general_dim_variedad v ON c.id_variedad = v.id
             LEFT JOIN general_dim_especie e ON v.id_especie = e.id
+            WHERE ce.id_sucursal = %s
             -- WHERE ce.id_tipoceco = 2  -- Solo CECOs de tipo productivo (comentado temporalmente)
             ORDER BY c.nombre ASC
-        """)
+        """, (id_sucursal,))
 
         cuarteles = cursor.fetchall()
         cursor.close()
