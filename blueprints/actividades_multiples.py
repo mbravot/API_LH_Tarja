@@ -554,3 +554,298 @@ def eliminar_ceco_riego(id_actividad, id_sectorriego):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# 🚀 Endpoint para crear un registro de CECO productivo para actividades múltiples
+@actividades_multiples_bp.route('/ceco-productivo', methods=['POST'])
+@jwt_required()
+def crear_ceco_productivo():
+    try:
+        data = request.json
+        usuario_id = get_jwt_identity()
+
+        # Validar campos requeridos
+        campos_requeridos = ['id_actividad', 'id_cuartel']
+        for campo in campos_requeridos:
+            if campo not in data or data[campo] in [None, '']:
+                return jsonify({"error": f"El campo {campo} es requerido"}), 400
+
+        id_actividad = data['id_actividad']
+        id_cuartel = data['id_cuartel']
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # Verificar que la actividad pertenece al usuario y es una actividad múltiple
+        cursor.execute("""
+            SELECT id FROM tarja_fact_actividad 
+            WHERE id = %s AND id_usuario = %s 
+            AND id_tipotrabajador = 1 
+            AND id_contratista IS NULL 
+            AND id_tiporendimiento = 3
+        """, (id_actividad, usuario_id))
+        
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Actividad múltiple no encontrada o no tienes permiso para modificarla"}), 404
+
+        # Obtener información del cuartel para autocompletar campos
+        cursor.execute("""
+            SELECT 
+                c.id_ceco,
+                c.id_especie,
+                c.id_variedad
+            FROM general_dim_cuartel c
+            WHERE c.id = %s
+        """, (id_cuartel,))
+        
+        cuartel_info = cursor.fetchone()
+        if not cuartel_info:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Cuartel no encontrado"}), 404
+
+        # Verificar que el CECO del cuartel sea de tipo productivo (2)
+        cursor.execute("""
+            SELECT id FROM general_dim_ceco 
+            WHERE id = %s AND id_tipoceco = 2
+        """, (cuartel_info['id_ceco'],))
+        
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "El CECO del cuartel no es de tipo productivo"}), 400
+
+        # Verificar que no exista ya un registro para esta actividad y cuartel
+        cursor.execute("""
+            SELECT id FROM tarja_fact_cecoproductivo 
+            WHERE id_actividad = %s AND id_cuartel = %s
+        """, (id_actividad, id_cuartel))
+        
+        if cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Ya existe un registro de CECO productivo para esta actividad y cuartel"}), 400
+
+        # Insertar el registro de CECO productivo
+        cursor.execute("""
+            INSERT INTO tarja_fact_cecoproductivo (
+                id_actividad, id_especie, id_variedad, id_cuartel, id_ceco
+            ) VALUES (%s, %s, %s, %s, %s)
+        """, (
+            id_actividad,
+            cuartel_info['id_especie'],
+            cuartel_info['id_variedad'],
+            id_cuartel,
+            cuartel_info['id_ceco']
+        ))
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "message": "CECO productivo registrado correctamente",
+            "data": {
+                "id_actividad": id_actividad,
+                "id_cuartel": id_cuartel,
+                "id_especie": cuartel_info['id_especie'],
+                "id_variedad": cuartel_info['id_variedad'],
+                "id_ceco": cuartel_info['id_ceco']
+            }
+        }), 201
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# 🚀 Endpoint para obtener cuarteles productivos disponibles
+@actividades_multiples_bp.route('/cuarteles-productivos', methods=['GET'])
+@jwt_required()
+def obtener_cuarteles_productivos():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # Obtener cuarteles productivos con información completa
+        cursor.execute("""
+            SELECT 
+                c.id as id_cuartel,
+                c.nombre as nombre_cuartel,
+                c.id_ceco,
+                ce.nombre as nombre_ceco,
+                c.id_especie,
+                e.nombre as nombre_especie,
+                c.id_variedad,
+                v.nombre as nombre_variedad
+            FROM general_dim_cuartel c
+            LEFT JOIN general_dim_ceco ce ON c.id_ceco = ce.id
+            LEFT JOIN general_dim_especie e ON c.id_especie = e.id
+            LEFT JOIN general_dim_variedad v ON c.id_variedad = v.id
+            WHERE ce.id_tipoceco = 2  -- Solo CECOs de tipo productivo
+            ORDER BY c.nombre ASC
+        """)
+
+        cuarteles = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        return jsonify(cuarteles), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# 🚀 Endpoint para eliminar un registro de CECO productivo
+@actividades_multiples_bp.route('/ceco-productivo/<string:id_actividad>/<int:id_cuartel>', methods=['DELETE'])
+@jwt_required()
+def eliminar_ceco_productivo(id_actividad, id_cuartel):
+    try:
+        usuario_id = get_jwt_identity()
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Verificar que la actividad pertenece al usuario y es una actividad múltiple
+        cursor.execute("""
+            SELECT id FROM tarja_fact_actividad 
+            WHERE id = %s AND id_usuario = %s 
+            AND id_tipotrabajador = 1 
+            AND id_contratista IS NULL 
+            AND id_tiporendimiento = 3
+        """, (id_actividad, usuario_id))
+        
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Actividad múltiple no encontrada o no tienes permiso para modificarla"}), 404
+
+        # Eliminar el registro de CECO productivo
+        cursor.execute("""
+            DELETE FROM tarja_fact_cecoproductivo 
+            WHERE id_actividad = %s AND id_cuartel = %s
+        """, (id_actividad, id_cuartel))
+
+        conn.commit()
+        
+        if cursor.rowcount == 0:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Registro de CECO productivo no encontrado"}), 404
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({"message": "CECO productivo eliminado correctamente"}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# 🚀 Endpoint para crear múltiples registros de CECO productivo (selección múltiple de cuarteles)
+@actividades_multiples_bp.route('/ceco-productivo-multiple', methods=['POST'])
+@jwt_required()
+def crear_ceco_productivo_multiple():
+    try:
+        data = request.json
+        usuario_id = get_jwt_identity()
+
+        # Validar campos requeridos
+        campos_requeridos = ['id_actividad', 'id_cuarteles']
+        for campo in campos_requeridos:
+            if campo not in data or data[campo] in [None, '']:
+                return jsonify({"error": f"El campo {campo} es requerido"}), 400
+
+        id_actividad = data['id_actividad']
+        id_cuarteles = data['id_cuarteles']
+
+        # Validar que id_cuarteles sea una lista
+        if not isinstance(id_cuarteles, list) or len(id_cuarteles) == 0:
+            return jsonify({"error": "id_cuarteles debe ser una lista no vacía"}), 400
+
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # Verificar que la actividad pertenece al usuario y es una actividad múltiple
+        cursor.execute("""
+            SELECT id FROM tarja_fact_actividad 
+            WHERE id = %s AND id_usuario = %s 
+            AND id_tipotrabajador = 1 
+            AND id_contratista IS NULL 
+            AND id_tiporendimiento = 3
+        """, (id_actividad, usuario_id))
+        
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Actividad múltiple no encontrada o no tienes permiso para modificarla"}), 404
+
+        registros_creados = []
+        registros_existentes = []
+
+        for id_cuartel in id_cuarteles:
+            # Obtener información del cuartel
+            cursor.execute("""
+                SELECT 
+                    c.id_ceco,
+                    c.id_especie,
+                    c.id_variedad
+                FROM general_dim_cuartel c
+                WHERE c.id = %s
+            """, (id_cuartel,))
+            
+            cuartel_info = cursor.fetchone()
+            if not cuartel_info:
+                continue
+
+            # Verificar que el CECO sea de tipo productivo
+            cursor.execute("""
+                SELECT id FROM general_dim_ceco 
+                WHERE id = %s AND id_tipoceco = 2
+            """, (cuartel_info['id_ceco'],))
+            
+            if not cursor.fetchone():
+                continue
+
+            # Verificar si ya existe el registro
+            cursor.execute("""
+                SELECT id FROM tarja_fact_cecoproductivo 
+                WHERE id_actividad = %s AND id_cuartel = %s
+            """, (id_actividad, id_cuartel))
+            
+            if cursor.fetchone():
+                registros_existentes.append(id_cuartel)
+                continue
+
+            # Insertar el registro
+            cursor.execute("""
+                INSERT INTO tarja_fact_cecoproductivo (
+                    id_actividad, id_especie, id_variedad, id_cuartel, id_ceco
+                ) VALUES (%s, %s, %s, %s, %s)
+            """, (
+                id_actividad,
+                cuartel_info['id_especie'],
+                cuartel_info['id_variedad'],
+                id_cuartel,
+                cuartel_info['id_ceco']
+            ))
+
+            registros_creados.append({
+                "id_cuartel": id_cuartel,
+                "id_especie": cuartel_info['id_especie'],
+                "id_variedad": cuartel_info['id_variedad'],
+                "id_ceco": cuartel_info['id_ceco']
+            })
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "message": f"Se crearon {len(registros_creados)} registros de CECO productivo",
+            "registros_creados": registros_creados,
+            "registros_existentes": registros_existentes,
+            "total_creados": len(registros_creados),
+            "total_existentes": len(registros_existentes)
+        }), 201
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
