@@ -593,9 +593,10 @@ def crear_ceco_productivo():
         cursor.execute("""
             SELECT 
                 c.id_ceco,
-                c.id_especie,
+                v.id_especie,
                 c.id_variedad
             FROM general_dim_cuartel c
+            LEFT JOIN general_dim_variedad v ON c.id_variedad = v.id
             WHERE c.id = %s
         """, (id_cuartel,))
         
@@ -674,14 +675,14 @@ def obtener_cuarteles_productivos():
                 c.nombre as nombre_cuartel,
                 c.id_ceco,
                 ce.nombre as nombre_ceco,
-                c.id_especie,
+                v.id_especie,
                 e.nombre as nombre_especie,
                 c.id_variedad,
                 v.nombre as nombre_variedad
             FROM general_dim_cuartel c
             LEFT JOIN general_dim_ceco ce ON c.id_ceco = ce.id
-            LEFT JOIN general_dim_especie e ON c.id_especie = e.id
             LEFT JOIN general_dim_variedad v ON c.id_variedad = v.id
+            LEFT JOIN general_dim_especie e ON v.id_especie = e.id
             WHERE ce.id_tipoceco = 2  -- Solo CECOs de tipo productivo
             ORDER BY c.nombre ASC
         """)
@@ -785,9 +786,10 @@ def crear_ceco_productivo_multiple():
             cursor.execute("""
                 SELECT 
                     c.id_ceco,
-                    c.id_especie,
+                    v.id_especie,
                     c.id_variedad
                 FROM general_dim_cuartel c
+                LEFT JOIN general_dim_variedad v ON c.id_variedad = v.id
                 WHERE c.id = %s
             """, (id_cuartel,))
             
