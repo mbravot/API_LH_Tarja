@@ -50,6 +50,7 @@ def create_app():
     from blueprints.rendimientopropio import rendimientopropio_bp
     from blueprints.indicadores import indicadores_bp
     from blueprints.actividades_multiples import actividades_multiples_bp
+    from blueprints.rendimiento_multiple import rendimiento_multiple_bp
 
     
     # Registrar blueprints
@@ -66,6 +67,7 @@ def create_app():
     app.register_blueprint(rendimientopropio_bp, url_prefix='/api/rendimientopropio')
     app.register_blueprint(indicadores_bp, url_prefix='/api/indicadores')
     app.register_blueprint(actividades_multiples_bp, url_prefix='/api/actividades_multiples')
+    app.register_blueprint(rendimiento_multiple_bp, url_prefix='/api/rendimiento_multiple')
     
     # Crear un nuevo blueprint para las rutas raíz
     root_bp = Blueprint('root_bp', __name__)
