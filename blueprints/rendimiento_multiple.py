@@ -41,16 +41,16 @@ def obtener_rendimientos_actividad(id_actividad):
                 r.horas_extras,
                 r.id_bono,
                 r.id_ceco,
-                c.nombre as nombre_colaborador,
+                CONCAT(c.nombre, ' ', c.apellido) as nombre_colaborador,
                 c.rut as rut_colaborador,
                 b.nombre as nombre_bono,
-                ce.nombre as nombre_ceco
+                COALESCE(ce.nombre, 'Sin nombre') as nombre_ceco
             FROM tarja_fact_rendimientopropio r
             LEFT JOIN general_dim_colaborador c ON r.id_colaborador = c.id
             LEFT JOIN general_dim_bono b ON r.id_bono = b.id
             LEFT JOIN general_dim_ceco ce ON r.id_ceco = ce.id
             WHERE r.id_actividad = %s
-            ORDER BY c.nombre ASC
+            ORDER BY c.nombre ASC, c.apellido ASC
         """, (id_actividad,))
 
         rendimientos = cursor.fetchall()
@@ -91,10 +91,10 @@ def obtener_rendimientos_usuario():
                 r.horas_extras,
                 r.id_bono,
                 r.id_ceco,
-                c.nombre as nombre_colaborador,
+                CONCAT(c.nombre, ' ', c.apellido) as nombre_colaborador,
                 c.rut as rut_colaborador,
                 b.nombre as nombre_bono,
-                ce.nombre as nombre_ceco,
+                COALESCE(ce.nombre, 'Sin nombre') as nombre_ceco,
                 a.fecha,
                 a.id_labor,
                 l.nombre as nombre_labor
@@ -109,7 +109,7 @@ def obtener_rendimientos_usuario():
             AND a.id_tipotrabajador = 1 
             AND a.id_contratista IS NULL 
             AND a.id_tiporendimiento = 3
-            ORDER BY a.fecha DESC, c.nombre ASC
+            ORDER BY a.fecha DESC, c.nombre ASC, c.apellido ASC
         """, (usuario_id, id_sucursal))
 
         rendimientos = cursor.fetchall()
@@ -396,11 +396,13 @@ def obtener_colaboradores():
         cursor.execute("""
             SELECT 
                 c.id,
+                CONCAT(c.nombre, ' ', c.apellido) as nombre_completo,
                 c.nombre,
+                c.apellido,
                 c.rut
             FROM general_dim_colaborador c
             WHERE c.id_sucursal = %s
-            ORDER BY c.nombre ASC
+            ORDER BY c.nombre ASC, c.apellido ASC
         """, (id_sucursal,))
 
         colaboradores = cursor.fetchall()
@@ -466,7 +468,7 @@ def obtener_cecos_actividad(id_actividad):
         cursor.execute("""
             SELECT 
                 c.id as id_ceco,
-                c.nombre as nombre_ceco,
+                COALESCE(c.nombre, 'Sin nombre') as nombre_ceco,
                 'riego' as tipo_ceco
             FROM tarja_fact_cecoriego tcr
             LEFT JOIN general_dim_ceco c ON tcr.id_ceco = c.id
@@ -480,7 +482,7 @@ def obtener_cecos_actividad(id_actividad):
         cursor.execute("""
             SELECT 
                 c.id as id_ceco,
-                c.nombre as nombre_ceco,
+                COALESCE(c.nombre, 'Sin nombre') as nombre_ceco,
                 'productivo' as tipo_ceco
             FROM tarja_fact_cecoproductivo tcp
             LEFT JOIN general_dim_ceco c ON tcp.id_ceco = c.id
