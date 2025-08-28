@@ -356,7 +356,6 @@ def obtener_colaboradores():
                 c.id,
                 c.nombre,
                 c.rut,
-                c.cargo,
                 c.estado
             FROM general_dim_colaborador c
             WHERE c.id_sucursal = %s AND c.estado = 1
@@ -385,7 +384,6 @@ def obtener_bonos():
             SELECT 
                 id,
                 nombre,
-                descripcion,
                 monto,
                 tipo
             FROM general_dim_bono
