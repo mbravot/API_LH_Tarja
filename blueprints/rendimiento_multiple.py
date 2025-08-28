@@ -41,8 +41,8 @@ def obtener_rendimientos_actividad(id_actividad):
                 r.horas_extras,
                 r.id_bono,
                 r.id_ceco,
-                CONCAT(c.nombre, ' ', c.apellido) as nombre_colaborador,
-                c.rut as rut_colaborador,
+                CONCAT(c.nombre, ' ', c.apellido_paterno, ' ', COALESCE(c.apellido_materno, '')) as nombre_colaborador,
+                CONCAT(c.rut, '-', c.codigo_verificador) as rut_colaborador,
                 b.nombre as nombre_bono,
                 COALESCE(ce.nombre, 'Sin nombre') as nombre_ceco
             FROM tarja_fact_rendimientopropio r
@@ -50,7 +50,7 @@ def obtener_rendimientos_actividad(id_actividad):
             LEFT JOIN general_dim_bono b ON r.id_bono = b.id
             LEFT JOIN general_dim_ceco ce ON r.id_ceco = ce.id
             WHERE r.id_actividad = %s
-            ORDER BY c.nombre ASC, c.apellido ASC
+            ORDER BY c.nombre ASC, c.apellido_paterno ASC, c.apellido_materno ASC
         """, (id_actividad,))
 
         rendimientos = cursor.fetchall()
@@ -91,8 +91,8 @@ def obtener_rendimientos_usuario():
                 r.horas_extras,
                 r.id_bono,
                 r.id_ceco,
-                CONCAT(c.nombre, ' ', c.apellido) as nombre_colaborador,
-                c.rut as rut_colaborador,
+                CONCAT(c.nombre, ' ', c.apellido_paterno, ' ', COALESCE(c.apellido_materno, '')) as nombre_colaborador,
+                CONCAT(c.rut, '-', c.codigo_verificador) as rut_colaborador,
                 b.nombre as nombre_bono,
                 COALESCE(ce.nombre, 'Sin nombre') as nombre_ceco,
                 a.fecha,
@@ -109,7 +109,7 @@ def obtener_rendimientos_usuario():
             AND a.id_tipotrabajador = 1 
             AND a.id_contratista IS NULL 
             AND a.id_tiporendimiento = 3
-            ORDER BY a.fecha DESC, c.nombre ASC, c.apellido ASC
+            ORDER BY a.fecha DESC, c.nombre ASC, c.apellido_paterno ASC, c.apellido_materno ASC
         """, (usuario_id, id_sucursal))
 
         rendimientos = cursor.fetchall()
@@ -396,13 +396,16 @@ def obtener_colaboradores():
         cursor.execute("""
             SELECT 
                 c.id,
-                CONCAT(c.nombre, ' ', c.apellido) as nombre_completo,
+                CONCAT(c.nombre, ' ', c.apellido_paterno, ' ', COALESCE(c.apellido_materno, '')) as nombre_completo,
                 c.nombre,
-                c.apellido,
-                c.rut
+                c.apellido_paterno,
+                c.apellido_materno,
+                CONCAT(c.rut, '-', c.codigo_verificador) as rut_completo,
+                c.rut,
+                c.codigo_verificador
             FROM general_dim_colaborador c
-            WHERE c.id_sucursal = %s
-            ORDER BY c.nombre ASC, c.apellido ASC
+            WHERE c.id_sucursal = %s AND c.id_estado = 1
+            ORDER BY c.nombre ASC, c.apellido_paterno ASC, c.apellido_materno ASC
         """, (id_sucursal,))
 
         colaboradores = cursor.fetchall()
