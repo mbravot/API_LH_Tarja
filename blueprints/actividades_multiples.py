@@ -424,7 +424,7 @@ def crear_ceco_riego():
         # Verificar que el CECO del sector sea de tipo riego (5)
         cursor.execute("""
             SELECT id FROM general_dim_ceco 
-            WHERE id = %s AND id_tipoceco = 5
+            WHERE id = %s
         """, (sector_info['id_ceco'],))
         
         if not cursor.fetchone():
@@ -498,7 +498,6 @@ def obtener_sectores_riego():
             LEFT JOIN general_dim_ceco c ON s.id_ceco = c.id
             LEFT JOIN riego_dim_equipo e ON s.id_equipo = e.id
             LEFT JOIN general_dim_maquinaria ca ON e.id_caseta = ca.id
-            WHERE c.id_tipoceco = 5  -- Solo CECOs de tipo riego
             ORDER BY s.nombre ASC
         """)
 
@@ -609,7 +608,7 @@ def crear_ceco_productivo():
         # Verificar que el CECO del cuartel sea de tipo productivo (2)
         cursor.execute("""
             SELECT id FROM general_dim_ceco 
-            WHERE id = %s AND id_tipoceco = 2
+            WHERE id = %s
         """, (cuartel_info['id_ceco'],))
         
         if not cursor.fetchone():
@@ -683,7 +682,7 @@ def obtener_cuarteles_productivos():
             LEFT JOIN general_dim_ceco ce ON c.id_ceco = ce.id
             LEFT JOIN general_dim_variedad v ON c.id_variedad = v.id
             LEFT JOIN general_dim_especie e ON v.id_especie = e.id
-            WHERE ce.id_tipoceco = 2  -- Solo CECOs de tipo productivo
+            -- WHERE ce.id_tipoceco = 2  -- Solo CECOs de tipo productivo (comentado temporalmente)
             ORDER BY c.nombre ASC
         """)
 
@@ -800,7 +799,7 @@ def crear_ceco_productivo_multiple():
             # Verificar que el CECO sea de tipo productivo
             cursor.execute("""
                 SELECT id FROM general_dim_ceco 
-                WHERE id = %s AND id_tipoceco = 2
+                WHERE id = %s
             """, (cuartel_info['id_ceco'],))
             
             if not cursor.fetchone():
@@ -912,7 +911,7 @@ def crear_ceco_riego_multiple():
             # Verificar que el CECO sea de tipo riego
             cursor.execute("""
                 SELECT id FROM general_dim_ceco 
-                WHERE id = %s AND id_tipoceco = 5
+                WHERE id = %s
             """, (sector_info['id_ceco'],))
             
             if not cursor.fetchone():
