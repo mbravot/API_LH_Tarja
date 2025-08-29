@@ -168,17 +168,40 @@ def crear_rendimiento():
         hora_inicio = actividad['hora_inicio']
         hora_fin = actividad['hora_fin']
         
-        # Convertir a objetos time si son strings
-        if isinstance(hora_inicio, str):
-            hora_inicio = datetime.strptime(hora_inicio, '%H:%M:%S').time()
-        if isinstance(hora_fin, str):
-            hora_fin = datetime.strptime(hora_fin, '%H:%M:%S').time()
+        # Debug: imprimir tipos y valores
+        print(f"DEBUG: hora_inicio tipo: {type(hora_inicio)}, valor: {hora_inicio}")
+        print(f"DEBUG: hora_fin tipo: {type(hora_fin)}, valor: {hora_fin}")
         
-        # Si ya son objetos time, usarlos directamente
+        # Convertir a objetos time
+        if isinstance(hora_inicio, str):
+            try:
+                hora_inicio = datetime.strptime(hora_inicio, '%H:%M:%S').time()
+            except ValueError:
+                try:
+                    hora_inicio = datetime.strptime(hora_inicio, '%H:%M').time()
+                except ValueError:
+                    return jsonify({"error": f"Formato de hora_inicio inválido: {hora_inicio}"}), 400
+        
+        if isinstance(hora_fin, str):
+            try:
+                hora_fin = datetime.strptime(hora_fin, '%H:%M:%S').time()
+            except ValueError:
+                try:
+                    hora_fin = datetime.strptime(hora_fin, '%H:%M').time()
+                except ValueError:
+                    return jsonify({"error": f"Formato de hora_fin inválido: {hora_fin}"}), 400
+        
+        # Si son objetos datetime, extraer solo la parte time
         if isinstance(hora_inicio, datetime):
             hora_inicio = hora_inicio.time()
         if isinstance(hora_fin, datetime):
             hora_fin = hora_fin.time()
+        
+        # Verificar que son objetos time válidos
+        if not isinstance(hora_inicio, datetime.time):
+            return jsonify({"error": f"hora_inicio no es un objeto time válido: {type(hora_inicio)}"}), 400
+        if not isinstance(hora_fin, datetime.time):
+            return jsonify({"error": f"hora_fin no es un objeto time válido: {type(hora_fin)}"}), 400
         
         # Calcular diferencia en horas
         inicio_dt = datetime.combine(date.today(), hora_inicio)
@@ -253,18 +276,6 @@ def crear_rendimiento():
             "message": "Rendimiento creado correctamente",
             "id_rendimiento": id_rendimiento,
             "id_ceco": id_ceco,
-            "horas_trabajadas_calculadas": horas_trabajadas
-        }), 201
-
-        conn.commit()
-        cursor.close()
-        cursor2.close()
-        conn.close()
-
-        return jsonify({
-            "success": True,
-            "message": f"Rendimientos creados correctamente para {len(rendimientos_creados)} CECOs",
-            "rendimientos_creados": rendimientos_creados,
             "horas_trabajadas_calculadas": horas_trabajadas
         }), 201
 
