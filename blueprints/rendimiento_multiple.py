@@ -198,9 +198,10 @@ def crear_rendimiento():
             hora_fin = hora_fin.time()
         
         # Verificar que son objetos time válidos
-        if not isinstance(hora_inicio, datetime.time):
+        from datetime import time
+        if not isinstance(hora_inicio, time):
             return jsonify({"error": f"hora_inicio no es un objeto time válido: {type(hora_inicio)}"}), 400
-        if not isinstance(hora_fin, datetime.time):
+        if not isinstance(hora_fin, time):
             return jsonify({"error": f"hora_fin no es un objeto time válido: {type(hora_fin)}"}), 400
         
         # Calcular diferencia en horas
