@@ -197,6 +197,21 @@ def crear_rendimiento():
         if isinstance(hora_fin, datetime):
             hora_fin = hora_fin.time()
         
+        # Si son objetos timedelta, convertirlos a time
+        if isinstance(hora_inicio, timedelta):
+            total_seconds = int(hora_inicio.total_seconds())
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            seconds = total_seconds % 60
+            hora_inicio = time(hours, minutes, seconds)
+        
+        if isinstance(hora_fin, timedelta):
+            total_seconds = int(hora_fin.total_seconds())
+            hours = total_seconds // 3600
+            minutes = (total_seconds % 3600) // 60
+            seconds = total_seconds % 60
+            hora_fin = time(hours, minutes, seconds)
+        
         # Verificar que son objetos time válidos
         if not isinstance(hora_inicio, time):
             return jsonify({"error": f"hora_inicio no es un objeto time válido: {type(hora_inicio)}"}), 400
