@@ -168,11 +168,17 @@ def crear_rendimiento():
         hora_inicio = actividad['hora_inicio']
         hora_fin = actividad['hora_fin']
         
-        # Convertir a timedelta para calcular la diferencia
+        # Convertir a objetos time si son strings
         if isinstance(hora_inicio, str):
             hora_inicio = datetime.strptime(hora_inicio, '%H:%M:%S').time()
         if isinstance(hora_fin, str):
             hora_fin = datetime.strptime(hora_fin, '%H:%M:%S').time()
+        
+        # Si ya son objetos time, usarlos directamente
+        if isinstance(hora_inicio, datetime):
+            hora_inicio = hora_inicio.time()
+        if isinstance(hora_fin, datetime):
+            hora_fin = hora_fin.time()
         
         # Calcular diferencia en horas
         inicio_dt = datetime.combine(date.today(), hora_inicio)
