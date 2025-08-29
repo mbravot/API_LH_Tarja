@@ -2,7 +2,7 @@ import datetime
 from flask import Blueprint, jsonify, request
 from utils.db import get_db_connection
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, time
 
 
 rendimiento_multiple_bp = Blueprint('rendimiento_multiple_bp', __name__)
@@ -198,7 +198,6 @@ def crear_rendimiento():
             hora_fin = hora_fin.time()
         
         # Verificar que son objetos time válidos
-        from datetime import time
         if not isinstance(hora_inicio, time):
             return jsonify({"error": f"hora_inicio no es un objeto time válido: {type(hora_inicio)}"}), 400
         if not isinstance(hora_fin, time):
