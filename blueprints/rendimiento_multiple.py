@@ -135,7 +135,7 @@ def crear_rendimiento():
         usuario_id = get_jwt_identity()
 
         # Validar campos requeridos
-        campos_requeridos = ['id_actividad', 'id_colaborador', 'rendimiento', 'id_cecos']
+        campos_requeridos = ['id_actividad', 'id_colaborador', 'rendimiento', 'id_ceco']
         for campo in campos_requeridos:
             if campo not in data or data[campo] in [None, '']:
                 return jsonify({"error": f"El campo {campo} es requerido"}), 400
@@ -143,11 +143,7 @@ def crear_rendimiento():
         id_actividad = data['id_actividad']
         id_colaborador = data['id_colaborador']
         rendimiento = data['rendimiento']
-        id_cecos = data['id_cecos']  # Array de CECOs
-
-        # Validar que id_cecos sea una lista
-        if not isinstance(id_cecos, list) or len(id_cecos) == 0:
-            return jsonify({"error": "id_cecos debe ser una lista no vacía"}), 400
+        id_ceco = data['id_ceco']  # ID del CECO
 
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
@@ -197,58 +193,62 @@ def crear_rendimiento():
             conn.close()
             return jsonify({"error": "Colaborador no encontrado"}), 404
 
-        # Verificar que los CECOs existen y pertenecen a la actividad
-        for id_ceco in id_cecos:
-            # Verificar que el CECO existe
-            cursor.execute("""
-                SELECT id FROM general_dim_ceco 
-                WHERE id = %s
-            """, (id_ceco,))
-            
-            if not cursor.fetchone():
-                cursor.close()
-                conn.close()
-                return jsonify({"error": f"CECO {id_ceco} no encontrado"}), 404
+        # Verificar que el CECO existe
+        cursor.execute("""
+            SELECT id FROM general_dim_ceco 
+            WHERE id = %s
+        """, (id_ceco,))
+        
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": f"CECO {id_ceco} no encontrado"}), 404
 
-        # Crear un rendimiento por cada CECO seleccionado
-        rendimientos_creados = []
+        # Verificar que no exista ya un rendimiento para esta actividad, colaborador y CECO
+        cursor.execute("""
+            SELECT id FROM tarja_fact_rendimientopropio 
+            WHERE id_actividad = %s AND id_colaborador = %s AND id_ceco = %s
+        """, (id_actividad, id_colaborador, id_ceco))
+        
+        if cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Ya existe un rendimiento para esta actividad, colaborador y CECO"}), 409
+
+        # Generar ID único para el rendimiento
         cursor2 = conn.cursor()
+        cursor2.execute("SELECT UUID()")
+        id_rendimiento = cursor2.fetchone()[0]
 
-        for id_ceco in id_cecos:
-            # Verificar que no exista ya un rendimiento para esta actividad, colaborador y CECO
-            cursor.execute("""
-                SELECT id FROM tarja_fact_rendimientopropio 
-                WHERE id_actividad = %s AND id_colaborador = %s AND id_ceco = %s
-            """, (id_actividad, id_colaborador, id_ceco))
-            
-            if cursor.fetchone():
-                continue  # Saltar si ya existe
+        # Insertar el rendimiento
+        cursor2.execute("""
+            INSERT INTO tarja_fact_rendimientopropio (
+                id, id_actividad, id_colaborador, rendimiento, 
+                horas_trabajadas, horas_extras, id_bono, id_ceco
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            id_rendimiento,
+            id_actividad,
+            id_colaborador,
+            rendimiento,
+            horas_trabajadas,
+            0,  # horas_extras = 0
+            None,  # id_bono = NULL
+            id_ceco
+        ))
 
-            # Generar ID único para el rendimiento
-            cursor2.execute("SELECT UUID()")
-            id_rendimiento = cursor2.fetchone()[0]
+        conn.commit()
+        cursor.close()
+        cursor2.close()
+        conn.close()
 
-            # Insertar el rendimiento
-            cursor2.execute("""
-                INSERT INTO tarja_fact_rendimientopropio (
-                    id, id_actividad, id_colaborador, rendimiento, 
-                    horas_trabajadas, horas_extras, id_bono, id_ceco
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """, (
-                id_rendimiento,
-                id_actividad,
-                id_colaborador,
-                rendimiento,
-                horas_trabajadas,
-                0,  # horas_extras = 0
-                None,  # id_bono = NULL
-                id_ceco
-            ))
-
-            rendimientos_creados.append({
-                "id_rendimiento": id_rendimiento,
-                "id_ceco": id_ceco
-            })
+        return jsonify({
+            "success": True,
+            "message": "Rendimiento creado correctamente",
+            "id_rendimiento": id_rendimiento,
+            "id_ceco": id_ceco,
+            "horas_trabajadas_calculadas": horas_trabajadas
+        }), 201
 
         conn.commit()
         cursor.close()
