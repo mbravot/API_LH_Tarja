@@ -207,6 +207,11 @@ def crear_actividad_multiple():
         if id_tipoceco not in [2, 5]:  # 2: Productivo, 5: Riego
             return jsonify({"error": "Las actividades múltiples solo permiten CECOs de tipo productivo (2) o riego (5)"}), 400
 
+        # Validar que la unidad sea horas base (36) u horas trato (4)
+        id_unidad = data.get('id_unidad')
+        if id_unidad not in [36, 4]:  # 36: Horas base, 4: Horas trato
+            return jsonify({"error": "Las actividades múltiples solo permiten unidades: horas base (36) u horas trato (4)"}), 400
+
         # Valores fijos para actividades múltiples
         id_tipotrabajador = 1  # Propio
         id_contratista = None  # Para propios
@@ -280,6 +285,11 @@ def editar_actividad_multiple(actividad_id):
         id_tipoceco = data.get('id_tipoceco')
         if id_tipoceco not in [2, 5]:  # 2: Productivo, 5: Riego
             return jsonify({"error": "Las actividades múltiples solo permiten CECOs de tipo productivo (2) o riego (5)"}), 400
+
+        # Validar que la unidad sea horas base (36) u horas trato (4)
+        id_unidad = data.get('id_unidad')
+        if id_unidad not in [36, 4]:  # 36: Horas base, 4: Horas trato
+            return jsonify({"error": "Las actividades múltiples solo permiten unidades: horas base (36) u horas trato (4)"}), 400
 
         fecha = data.get('fecha')
         id_labor = data.get('id_labor')
@@ -508,7 +518,7 @@ def obtener_sectores_riego():
             LEFT JOIN general_dim_ceco c ON s.id_ceco = c.id
             LEFT JOIN riego_dim_equipo e ON s.id_equipo = e.id
             LEFT JOIN general_dim_maquinaria ca ON e.id_caseta = ca.id
-            WHERE c.id_sucursal = %s
+            WHERE c.id_sucursal = %s AND c.id_estado = 1
             ORDER BY s.nombre ASC
         """, (id_sucursal,))
 
@@ -703,7 +713,7 @@ def obtener_cuarteles_productivos():
             LEFT JOIN general_dim_ceco ce ON c.id_ceco = ce.id
             LEFT JOIN general_dim_variedad v ON c.id_variedad = v.id
             LEFT JOIN general_dim_especie e ON v.id_especie = e.id
-            WHERE ce.id_sucursal = %s
+            WHERE ce.id_sucursal = %s AND ce.id_estado = 1
             -- WHERE ce.id_tipoceco = 2  -- Solo CECOs de tipo productivo (comentado temporalmente)
             ORDER BY c.nombre ASC
         """, (id_sucursal,))
