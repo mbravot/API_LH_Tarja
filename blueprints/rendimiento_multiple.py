@@ -164,67 +164,8 @@ def crear_rendimiento():
             conn.close()
             return jsonify({"error": "Actividad múltiple no encontrada o no tienes permiso para modificarla"}), 404
 
-        # Calcular horas trabajadas automáticamente
-        hora_inicio = actividad['hora_inicio']
-        hora_fin = actividad['hora_fin']
-        
-        # Debug: imprimir tipos y valores
-        print(f"DEBUG: hora_inicio tipo: {type(hora_inicio)}, valor: {hora_inicio}")
-        print(f"DEBUG: hora_fin tipo: {type(hora_fin)}, valor: {hora_fin}")
-        
-        # Convertir a objetos time
-        if isinstance(hora_inicio, str):
-            try:
-                hora_inicio = datetime.strptime(hora_inicio, '%H:%M:%S').time()
-            except ValueError:
-                try:
-                    hora_inicio = datetime.strptime(hora_inicio, '%H:%M').time()
-                except ValueError:
-                    return jsonify({"error": f"Formato de hora_inicio inválido: {hora_inicio}"}), 400
-        
-        if isinstance(hora_fin, str):
-            try:
-                hora_fin = datetime.strptime(hora_fin, '%H:%M:%S').time()
-            except ValueError:
-                try:
-                    hora_fin = datetime.strptime(hora_fin, '%H:%M').time()
-                except ValueError:
-                    return jsonify({"error": f"Formato de hora_fin inválido: {hora_fin}"}), 400
-        
-        # Si son objetos datetime, extraer solo la parte time
-        if isinstance(hora_inicio, datetime):
-            hora_inicio = hora_inicio.time()
-        if isinstance(hora_fin, datetime):
-            hora_fin = hora_fin.time()
-        
-        # Si son objetos timedelta, convertirlos a time
-        if isinstance(hora_inicio, timedelta):
-            total_seconds = int(hora_inicio.total_seconds())
-            hours = total_seconds // 3600
-            minutes = (total_seconds % 3600) // 60
-            seconds = total_seconds % 60
-            hora_inicio = time(hours, minutes, seconds)
-        
-        if isinstance(hora_fin, timedelta):
-            total_seconds = int(hora_fin.total_seconds())
-            hours = total_seconds // 3600
-            minutes = (total_seconds % 3600) // 60
-            seconds = total_seconds % 60
-            hora_fin = time(hours, minutes, seconds)
-        
-        # Verificar que son objetos time válidos
-        if not isinstance(hora_inicio, time):
-            return jsonify({"error": f"hora_inicio no es un objeto time válido: {type(hora_inicio)}"}), 400
-        if not isinstance(hora_fin, time):
-            return jsonify({"error": f"hora_fin no es un objeto time válido: {type(hora_fin)}"}), 400
-        
-        # Calcular diferencia en horas
-        inicio_dt = datetime.combine(date.today(), hora_inicio)
-        fin_dt = datetime.combine(date.today(), hora_fin)
-        if fin_dt < inicio_dt:  # Si pasa de medianoche
-            fin_dt += timedelta(days=1)
-        
-        horas_trabajadas = (fin_dt - inicio_dt).total_seconds() / 3600
+        # Las horas trabajadas ahora son iguales al rendimiento
+        horas_trabajadas = rendimiento
 
         # Verificar que el colaborador existe
         cursor.execute("""
@@ -291,7 +232,7 @@ def crear_rendimiento():
             "message": "Rendimiento creado correctamente",
             "id_rendimiento": id_rendimiento,
             "id_ceco": id_ceco,
-            "horas_trabajadas_calculadas": horas_trabajadas
+            "horas_trabajadas": horas_trabajadas
         }), 201
 
     except Exception as e:
