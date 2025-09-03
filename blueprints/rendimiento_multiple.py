@@ -478,3 +478,78 @@ def obtener_cecos_actividad(id_actividad):
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# 🚀 Endpoint para obtener rendimientos propios por CECO
+@rendimiento_multiple_bp.route('/por-ceco/<int:id_ceco>', methods=['GET'])
+@jwt_required()
+def getRendimientosPropiosPorCeco(id_ceco):
+    try:
+        usuario_id = get_jwt_identity()
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Obtener sucursal activa del usuario
+        cursor.execute("SELECT id_sucursalactiva FROM general_dim_usuario WHERE id = %s", (usuario_id,))
+        usuario = cursor.fetchone()
+        if not usuario or not usuario['id_sucursalactiva']:
+            return jsonify({"error": "No se encontró la sucursal activa del usuario"}), 400
+        id_sucursal = usuario['id_sucursalactiva']
+        
+        # Verificar que el CECO existe y obtener su nombre
+        cursor.execute("SELECT id, nombre FROM general_dim_ceco WHERE id = %s", (id_ceco,))
+        ceco = cursor.fetchone()
+        if not ceco:
+            return jsonify({"error": "CECO no encontrado"}), 404
+        
+        nombre_ceco = ceco['nombre']
+        
+        # Obtener rendimientos propios de actividades múltiples para el CECO específico
+        cursor.execute("""
+            SELECT 
+                r.id,
+                r.id_actividad,
+                r.id_colaborador,
+                r.rendimiento,
+                r.horas_trabajadas,
+                r.horas_extras,
+                r.id_bono,
+                r.id_ceco,
+                CONCAT(c.nombre, ' ', c.apellido_paterno, ' ', COALESCE(c.apellido_materno, '')) as nombre_colaborador,
+                CONCAT(c.rut, '-', c.codigo_verificador) as rut_colaborador,
+                b.nombre as nombre_bono,
+                a.fecha,
+                a.id_labor,
+                l.nombre as nombre_labor
+            FROM tarja_fact_rendimientopropio r
+            LEFT JOIN general_dim_colaborador c ON r.id_colaborador = c.id
+            LEFT JOIN general_dim_bono b ON r.id_bono = b.id
+            LEFT JOIN tarja_fact_actividad a ON r.id_actividad = a.id
+            LEFT JOIN general_dim_labor l ON a.id_labor = l.id
+            WHERE r.id_ceco = %s 
+            AND a.id_usuario = %s 
+            AND a.id_sucursalactiva = %s
+            AND a.id_tipotrabajador = 1 
+            AND a.id_contratista IS NULL 
+            AND a.id_tiporendimiento = 3
+            ORDER BY a.fecha DESC, c.nombre ASC, c.apellido_paterno ASC, c.apellido_materno ASC
+        """, (id_ceco, usuario_id, id_sucursal))
+        
+        rendimientos = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        # Convertir fecha a string
+        for rendimiento in rendimientos:
+            if isinstance(rendimiento['fecha'], (date, datetime)):
+                rendimiento['fecha'] = rendimiento['fecha'].strftime('%Y-%m-%d')
+        
+        return jsonify({
+            "ceco": {
+                "id": id_ceco,
+                "nombre": nombre_ceco
+            },
+            "rendimientos": rendimientos
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
