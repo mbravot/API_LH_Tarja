@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from utils.db import get_db_connection
 import uuid
+from datetime import date, datetime
 
 rendimientopropio_bp = Blueprint('rendimientopropio_bp', __name__)
 
@@ -215,5 +216,85 @@ def listar_actividades_sucursal_usuario():
         cursor.close()
         conn.close()
         return jsonify(actividades), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500 
+
+# 🚀 Endpoint para obtener horas trabajadas de un colaborador por actividad y CECO
+@rendimientopropio_bp.route('/colaborador/<string:id_colaborador>/horas-trabajadas', methods=['GET'])
+@jwt_required()
+def obtener_horas_trabajadas_colaborador(id_colaborador):
+    try:
+        usuario_id = get_jwt_identity()
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Obtener sucursal activa del usuario
+        cursor.execute("SELECT id_sucursalactiva FROM general_dim_usuario WHERE id = %s", (usuario_id,))
+        usuario = cursor.fetchone()
+        if not usuario or not usuario['id_sucursalactiva']:
+            return jsonify({"error": "No se encontró la sucursal activa del usuario"}), 400
+        id_sucursal = usuario['id_sucursalactiva']
+        
+        # Verificar que el colaborador existe y pertenece a la sucursal
+        cursor.execute("""
+            SELECT id, nombre, apellido_paterno, apellido_materno 
+            FROM general_dim_colaborador 
+            WHERE id = %s AND id_sucursal = %s
+        """, (id_colaborador, id_sucursal))
+        colaborador = cursor.fetchone()
+        if not colaborador:
+            return jsonify({"error": "Colaborador no encontrado o no pertenece a tu sucursal"}), 404
+        
+        # Obtener horas trabajadas del colaborador por actividad y CECO
+        cursor.execute("""
+            SELECT 
+                r.id,
+                r.id_actividad,
+                r.rendimiento,
+                r.horas_trabajadas,
+                r.horas_extras,
+                r.id_bono,
+                r.id_ceco,
+                a.fecha,
+                a.id_labor,
+                l.nombre as nombre_labor,
+                COALESCE(ce.nombre, 'Sin nombre') as nombre_ceco,
+                b.nombre as nombre_bono
+            FROM tarja_fact_rendimientopropio r
+            JOIN tarja_fact_actividad a ON r.id_actividad = a.id
+            JOIN general_dim_labor l ON a.id_labor = l.id
+            LEFT JOIN general_dim_ceco ce ON r.id_ceco = ce.id
+            LEFT JOIN general_dim_bono b ON r.id_bono = b.id
+            WHERE r.id_colaborador = %s 
+            AND a.id_sucursalactiva = %s
+            ORDER BY a.fecha DESC, l.nombre ASC, ce.nombre ASC
+        """, (id_colaborador, id_sucursal))
+        
+        horas_trabajadas = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        # Formatear datos
+        for registro in horas_trabajadas:
+            # Convertir fecha a string
+            if isinstance(registro['fecha'], (date, datetime)):
+                registro['fecha'] = registro['fecha'].strftime('%Y-%m-%d')
+            
+            # Convertir valores numéricos a float
+            if 'rendimiento' in registro and registro['rendimiento'] is not None:
+                registro['rendimiento'] = float(registro['rendimiento'])
+            if 'horas_trabajadas' in registro and registro['horas_trabajadas'] is not None:
+                registro['horas_trabajadas'] = float(registro['horas_trabajadas'])
+            if 'horas_extras' in registro and registro['horas_extras'] is not None:
+                registro['horas_extras'] = float(registro['horas_extras'])
+        
+        return jsonify({
+            "colaborador": {
+                "id": colaborador['id'],
+                "nombre_completo": f"{colaborador['nombre']} {colaborador['apellido_paterno']} {colaborador['apellido_materno'] or ''}".strip()
+            },
+            "horas_trabajadas": horas_trabajadas
+        }), 200
+        
     except Exception as e:
         return jsonify({"error": str(e)}), 500 
