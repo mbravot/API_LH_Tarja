@@ -102,12 +102,23 @@ def listar_rendimientos_propios_por_actividad(id_actividad):
             ceco = cursor.fetchone()
             if ceco:
                 nombre_ceco = ceco['nombre']
-        # Obtener rendimientos propios
+        # Obtener rendimientos propios con información del CECO específico
         cursor.execute("""
-            SELECT r.id, r.id_colaborador, c.nombre as nombre_colaborador, c.apellido_paterno, c.apellido_materno,
-                   r.horas_trabajadas, r.rendimiento, r.horas_extras, r.id_bono
+            SELECT 
+                r.id, 
+                r.id_colaborador, 
+                c.nombre as nombre_colaborador, 
+                c.apellido_paterno, 
+                c.apellido_materno,
+                r.horas_trabajadas, 
+                r.rendimiento, 
+                r.horas_extras, 
+                r.id_bono,
+                r.id_ceco,
+                COALESCE(ce.nombre, 'Sin nombre') as nombre_ceco
             FROM tarja_fact_rendimientopropio r
             JOIN general_dim_colaborador c ON r.id_colaborador = c.id
+            LEFT JOIN general_dim_ceco ce ON r.id_ceco = ce.id
             WHERE r.id_actividad = %s
             ORDER BY c.nombre ASC, c.apellido_paterno ASC, c.apellido_materno ASC
         """, (id_actividad,))
