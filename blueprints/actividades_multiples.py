@@ -244,6 +244,17 @@ def crear_actividad_multiple():
             data['hora_fin'],
             data['id_estadoactividad']
         ))
+
+        # Insertar el estado inicial en tarja_pivot_actividadestado
+        cursor2.execute("SELECT UUID()")
+        id_estado = cursor2.fetchone()[0]
+        
+        cursor2.execute("""
+            INSERT INTO tarja_pivot_actividadestado (
+                id, id_actividad, id_estadoactividad, fecha_hora
+            ) VALUES (%s, %s, %s, NOW())
+        """, (id_estado, id_actividad, 1))  # 1 = Estado "Creada"
+        
         conn.commit()
         cursor.close()
         cursor2.close()
