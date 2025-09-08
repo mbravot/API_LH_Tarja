@@ -371,14 +371,32 @@ def eliminar_actividad_multiple(actividad_id):
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Solo permitir eliminar si la actividad es del usuario y es una actividad múltiple
+        # Verificar que la actividad existe y pertenece al usuario
         cursor.execute("""
-            DELETE FROM tarja_fact_actividad 
+            SELECT id FROM tarja_fact_actividad 
             WHERE id = %s AND id_usuario = %s
             AND id_tipotrabajador = 1 
             AND id_contratista IS NULL 
             AND id_tiporendimiento = 3
         """, (actividad_id, usuario_id))
+        
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Actividad múltiple no encontrada o no tienes permiso para eliminarla"}), 404
+        
+        # Eliminar registros relacionados primero
+        # Eliminar estados de actividad
+        cursor.execute("DELETE FROM tarja_pivot_actividadestado WHERE id_actividad = %s", (actividad_id,))
+        
+        # Eliminar CECOs de riego (se eliminan automáticamente por CASCADE, pero por seguridad)
+        cursor.execute("DELETE FROM tarja_fact_cecoriego WHERE id_actividad = %s", (actividad_id,))
+        
+        # Eliminar CECOs productivos (se eliminan automáticamente por CASCADE, pero por seguridad)
+        cursor.execute("DELETE FROM tarja_fact_cecoproductivo WHERE id_actividad = %s", (actividad_id,))
+        
+        # Finalmente eliminar la actividad
+        cursor.execute("DELETE FROM tarja_fact_actividad WHERE id = %s", (actividad_id,))
         
         conn.commit()
         if cursor.rowcount == 0:

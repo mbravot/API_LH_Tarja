@@ -377,8 +377,24 @@ def eliminar_actividad(actividad_id):
         usuario_id = get_jwt_identity()
         conn = get_db_connection()
         cursor = conn.cursor()
-        # Solo permitir eliminar si la actividad es del usuario
-        cursor.execute("DELETE FROM tarja_fact_actividad WHERE id = %s AND id_usuario = %s", (actividad_id, usuario_id))
+        # Verificar que la actividad existe y pertenece al usuario
+        cursor.execute("""
+            SELECT id FROM tarja_fact_actividad 
+            WHERE id = %s AND id_usuario = %s 
+            AND id_tiporendimiento != 3
+        """, (actividad_id, usuario_id))
+        
+        if not cursor.fetchone():
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "Actividad no encontrada o no tienes permiso para eliminarla"}), 404
+        
+        # Eliminar registros relacionados primero
+        # Eliminar estados de actividad
+        cursor.execute("DELETE FROM tarja_pivot_actividadestado WHERE id_actividad = %s", (actividad_id,))
+        
+        # Finalmente eliminar la actividad
+        cursor.execute("DELETE FROM tarja_fact_actividad WHERE id = %s", (actividad_id,))
         conn.commit()
         if cursor.rowcount == 0:
             cursor.close()
