@@ -274,11 +274,11 @@ def crear_actividad():
         cursor2.execute("SELECT UUID()")
         id_estado = cursor2.fetchone()[0]
         
-            cursor2.execute("""
-                INSERT INTO tarja_pivot_actividadestado (
-                    id, id_actividad, id_estadoactividad, fecha_hora
-                ) VALUES (%s, %s, %s, CONVERT_TZ(NOW(), '+00:00', '-03:00'))
-            """, (id_estado, id_actividad, 1))  # 1 = Estado "Creada"
+        cursor2.execute("""
+            INSERT INTO tarja_pivot_actividadestado (
+                id, id_actividad, id_estadoactividad, fecha_hora
+            ) VALUES (%s, %s, %s, CONVERT_TZ(NOW(), '+00:00', '-03:00'))
+        """, (id_estado, id_actividad, 1))  # 1 = Estado "Creada"
         
         conn.commit()
         cursor.close()
