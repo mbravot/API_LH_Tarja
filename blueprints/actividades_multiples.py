@@ -293,10 +293,8 @@ def editar_actividad_multiple(actividad_id):
         # Obtener el tipo de CECO de los datos (se mantiene el original)
         id_tipoceco = data.get('id_tipoceco')
 
-        # Validar que la unidad sea horas base (36) u horas trato (4)
+        # Obtener la unidad de los datos (se mantiene la original)
         id_unidad = data.get('id_unidad')
-        if id_unidad not in [36, 4]:  # 36: Horas base, 4: Horas trato
-            return jsonify({"error": "Las actividades múltiples solo permiten unidades: horas base (36) u horas trato (4)"}), 400
 
         fecha = data.get('fecha')
         id_labor = data.get('id_labor')
