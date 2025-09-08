@@ -287,10 +287,8 @@ def editar_actividad_multiple(actividad_id):
             if campo not in data or data[campo] in [None, '']:
                 return jsonify({"error": f"El campo {campo} es requerido"}), 400
 
-        # Validar que el tipo de rendimiento sea múltiple (3)
-        id_tiporendimiento = data.get('id_tiporendimiento')
-        if id_tiporendimiento != 3:
-            return jsonify({"error": "Las actividades múltiples deben tener id_tiporendimiento = 3"}), 400
+        # Para actividades múltiples, el tipo de rendimiento siempre es 3 (MÚLTIPLE)
+        id_tiporendimiento = 3
 
         # Validar que el tipo de CECO sea productivo (2) o riego (5)
         id_tipoceco = data.get('id_tipoceco')
