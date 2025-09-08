@@ -290,10 +290,8 @@ def editar_actividad_multiple(actividad_id):
         # Para actividades múltiples, el tipo de rendimiento siempre es 3 (MÚLTIPLE)
         id_tiporendimiento = 3
 
-        # Validar que el tipo de CECO sea productivo (2) o riego (5)
+        # Obtener el tipo de CECO de los datos (se mantiene el original)
         id_tipoceco = data.get('id_tipoceco')
-        if id_tipoceco not in [2, 5]:  # 2: Productivo, 5: Riego
-            return jsonify({"error": "Las actividades múltiples solo permiten CECOs de tipo productivo (2) o riego (5)"}), 400
 
         # Validar que la unidad sea horas base (36) u horas trato (4)
         id_unidad = data.get('id_unidad')
