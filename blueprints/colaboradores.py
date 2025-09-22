@@ -105,7 +105,6 @@ def editar_colaborador(colaborador_id):
         nombre = data.get('nombre', colaborador_actual['nombre'])
         apellido_paterno = data.get('apellido_paterno', colaborador_actual['apellido_paterno'])
         apellido_materno = data.get('apellido_materno', colaborador_actual['apellido_materno'])
-        id_sucursalcontrato = data.get('id_sucursalcontrato', colaborador_actual['id_sucursalcontrato'])
         id_cargo = data.get('id_cargo', colaborador_actual['id_cargo'])
         fecha_nacimiento = data.get('fecha_nacimiento', colaborador_actual['fecha_nacimiento'])
         fecha_incorporacion = data.get('fecha_incorporacion', colaborador_actual['fecha_incorporacion'])
@@ -116,7 +115,7 @@ def editar_colaborador(colaborador_id):
         sql = """
             UPDATE general_dim_colaborador
             SET nombre = %s, apellido_paterno = %s, apellido_materno = %s, rut = %s, codigo_verificador = %s,
-                id_sucursalcontrato = %s, id_cargo = %s, fecha_nacimiento = %s, fecha_incorporacion = %s,
+                id_cargo = %s, fecha_nacimiento = %s, fecha_incorporacion = %s,
                 id_prevision = %s, id_afp = %s, id_estado = %s
             WHERE id = %s
         """
@@ -126,7 +125,6 @@ def editar_colaborador(colaborador_id):
             apellido_materno,
             rut,
             codigo_verificador,
-            id_sucursalcontrato,
             id_cargo,
             fecha_nacimiento,
             fecha_incorporacion,
