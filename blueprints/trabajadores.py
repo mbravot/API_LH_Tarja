@@ -31,7 +31,7 @@ def obtener_trabajadores():
             SELECT t.id, t.rut, t.codigo_verificador, t.nombre, t.apellido_paterno, t.apellido_materno,
                    t.id_contratista, t.id_porcentaje, t.id_estado, t.id_sucursal_activa
             FROM general_dim_trabajador t
-            WHERE t.id_sucursal_activa = %s
+            WHERE t.id_sucursal_activa = %s AND t.id_estado = 1
         """
         params = [id_sucursal]
 

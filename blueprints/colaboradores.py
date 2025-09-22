@@ -23,7 +23,7 @@ def listar_colaboradores():
         # Listar colaboradores de la sucursal
         cursor.execute("""
             SELECT * FROM general_dim_colaborador
-            WHERE id_sucursal = %s
+            WHERE id_sucursal = %s AND id_estado = 1
             ORDER BY nombre, apellido_paterno, apellido_materno ASC
         """, (id_sucursal,))
         colaboradores = cursor.fetchall()
