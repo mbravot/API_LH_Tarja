@@ -57,9 +57,9 @@ def crear_colaborador():
         sql = """
             INSERT INTO general_dim_colaborador (
                 id, nombre, apellido_paterno, apellido_materno, rut, codigo_verificador,
-                id_sucursal, id_sucursalcontrato, id_cargo, fecha_nacimiento, fecha_incorporacion,
+                id_sucursal, id_cargo, fecha_nacimiento, fecha_incorporacion,
                 id_prevision, id_afp, id_estado
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
         cursor.execute(sql, (
             colaborador_id,
@@ -69,7 +69,6 @@ def crear_colaborador():
             data.get('rut'),
             data.get('codigo_verificador'),
             id_sucursal,
-            data['id_sucursalcontrato'],
             data.get('id_cargo'),
             data.get('fecha_nacimiento'),
             data.get('fecha_incorporacion'),
