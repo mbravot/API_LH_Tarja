@@ -819,7 +819,11 @@ def obtener_roles():
         cursor.close()
         conn.close()
         
-        return jsonify(roles), 200
+        return jsonify({
+            "success": True,
+            "data": roles,
+            "count": len(roles)
+        }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -845,7 +849,11 @@ def obtener_perfiles():
         cursor.close()
         conn.close()
         
-        return jsonify(perfiles), 200
+        return jsonify({
+            "success": True,
+            "data": perfiles,
+            "count": len(perfiles)
+        }), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -861,6 +869,10 @@ def obtener_estados():
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         
+        # Primero verificar si la tabla existe y tiene datos
+        cursor.execute("SELECT COUNT(*) as total FROM general_dim_estado")
+        total_estados = cursor.fetchone()
+        
         cursor.execute("""
             SELECT id, nombre
             FROM general_dim_estado
@@ -872,6 +884,15 @@ def obtener_estados():
         cursor.close()
         conn.close()
         
-        return jsonify(estados), 200
+        return jsonify({
+            "success": True,
+            "data": estados,
+            "count": len(estados),
+            "total_in_table": total_estados['total'] if total_estados else 0
+        }), 200
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "error_type": type(e).__name__
+        }), 500
