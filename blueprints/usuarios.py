@@ -809,8 +809,8 @@ def obtener_roles():
         cursor = conn.cursor(dictionary=True)
         
         cursor.execute("""
-            SELECT id, nombre, descripcion
-            FROM general_dim_rol
+            SELECT id, nombre
+            FROM ticket_dim_rol
             WHERE id != 3
             ORDER BY nombre ASC
         """)
