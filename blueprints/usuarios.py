@@ -862,7 +862,7 @@ def obtener_estados():
         cursor = conn.cursor(dictionary=True)
         
         cursor.execute("""
-            SELECT id, nombre, descripcion
+            SELECT id, nombre
             FROM general_dim_estado
             WHERE id != 1
             ORDER BY nombre ASC
