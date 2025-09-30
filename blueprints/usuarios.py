@@ -151,7 +151,7 @@ def crear_usuario():
         # Valores por defecto para campos ocultos
         id_estado = 1  # Activo por defecto
         if not id_rol:
-            id_rol = 3     # Usuario común por defecto
+            id_rol = 3     # Usuario común por defecto (no se muestra en lista)
         if not id_perfil:
             id_perfil = 1  # Perfil 1 por defecto
 
@@ -811,6 +811,7 @@ def obtener_roles():
         cursor.execute("""
             SELECT id, nombre, descripcion
             FROM general_dim_rol
+            WHERE id != 3
             ORDER BY nombre ASC
         """)
         
@@ -835,8 +836,8 @@ def obtener_perfiles():
         cursor = conn.cursor(dictionary=True)
         
         cursor.execute("""
-            SELECT id, nombre, descripcion
-            FROM general_dim_perfil
+            SELECT id, nombre
+            FROM usuario_dim_perfil
             ORDER BY nombre ASC
         """)
         
@@ -863,6 +864,7 @@ def obtener_estados():
         cursor.execute("""
             SELECT id, nombre, descripcion
             FROM general_dim_estado
+            WHERE id != 1
             ORDER BY nombre ASC
         """)
         
