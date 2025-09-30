@@ -31,17 +31,50 @@ def obtener_usuarios():
         cursor = conn.cursor(dictionary=True)
         cursor.execute("""
     SELECT 
-        u.id, u.usuario, u.nombre, u.apellido_paterno, u.apellido_materno, 
-        u.correo, u.id_sucursalactiva, u.id_estado, u.id_rol, u.id_perfil, 
-        u.fecha_creacion, s.nombre AS nombre_sucursal
+        u.id, u.id_sucursalactiva, u.usuario, u.nombre, u.apellido_paterno, u.apellido_materno, 
+        u.clave, u.fecha_creacion, u.id_estado, u.correo, u.id_rol, u.id_perfil,
+        s.nombre AS nombre_sucursal
     FROM general_dim_usuario u
     LEFT JOIN general_dim_sucursal s ON u.id_sucursalactiva = s.id
+    ORDER BY u.fecha_creacion DESC
 """)
 
         usuarios = cursor.fetchall()
         cursor.close()
         conn.close()
         return jsonify(usuarios), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# 🔹 Obtener usuario por ID (solo admin)
+@usuarios_bp.route('/<string:usuario_id>', methods=['GET'])
+@jwt_required()
+def obtener_usuario_por_id(usuario_id):
+    usuario_logueado = get_jwt_identity()
+    if not verificar_admin(usuario_logueado):
+        return jsonify({"error": "No autorizado"}), 403
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("""
+    SELECT 
+        u.id, u.id_sucursalactiva, u.usuario, u.nombre, u.apellido_paterno, u.apellido_materno, 
+        u.clave, u.fecha_creacion, u.id_estado, u.correo, u.id_rol, u.id_perfil,
+        s.nombre AS nombre_sucursal
+    FROM general_dim_usuario u
+    LEFT JOIN general_dim_sucursal s ON u.id_sucursalactiva = s.id
+    WHERE u.id = %s
+""", (usuario_id,))
+
+        usuario = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if not usuario:
+            return jsonify({"error": "Usuario no encontrado"}), 404
+            
+        return jsonify(usuario), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -62,6 +95,8 @@ def crear_usuario():
     correo = data.get('correo')
     clave = data.get('clave')
     id_sucursalactiva = data.get('id_sucursalactiva')
+    id_rol = data.get('id_rol')
+    id_perfil = data.get('id_perfil')
 
     # Convertir id_sucursalactiva a entero si es necesario
     if id_sucursalactiva:
@@ -69,6 +104,20 @@ def crear_usuario():
             id_sucursalactiva = int(id_sucursalactiva)
         except (ValueError, TypeError):
             return jsonify({"error": "id_sucursalactiva debe ser un número válido"}), 400
+
+    # Convertir id_rol a entero si es necesario
+    if id_rol:
+        try:
+            id_rol = int(id_rol)
+        except (ValueError, TypeError):
+            return jsonify({"error": "id_rol debe ser un número válido"}), 400
+
+    # Convertir id_perfil a entero si es necesario
+    if id_perfil:
+        try:
+            id_perfil = int(id_perfil)
+        except (ValueError, TypeError):
+            return jsonify({"error": "id_perfil debe ser un número válido"}), 400
 
     # Validar campos obligatorios
     if not usuario or not nombre or not apellido_paterno or not correo or not clave or not id_sucursalactiva:
@@ -101,8 +150,10 @@ def crear_usuario():
 
         # Valores por defecto para campos ocultos
         id_estado = 1  # Activo por defecto
-        id_rol = 3     # Usuario común por defecto
-        id_perfil = 1  # Perfil 1 por defecto
+        if not id_rol:
+            id_rol = 3     # Usuario común por defecto
+        if not id_perfil:
+            id_perfil = 1  # Perfil 1 por defecto
 
         # Generar UUID para el usuario
         usuario_id = str(uuid.uuid4())
@@ -110,12 +161,12 @@ def crear_usuario():
         # Insertar usuario
         cursor.execute("""
             INSERT INTO general_dim_usuario (
-                id, usuario, nombre, apellido_paterno, apellido_materno, correo, clave, 
-                id_sucursalactiva, id_estado, id_rol, id_perfil, fecha_creacion
+                id, id_sucursalactiva, usuario, nombre, apellido_paterno, apellido_materno, 
+                clave, fecha_creacion, id_estado, correo, id_rol, id_perfil
             )
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """, (usuario_id, usuario, nombre, apellido_paterno, apellido_materno, correo, clave_encriptada, 
-              id_sucursalactiva, id_estado, id_rol, id_perfil, date.today()))
+        """, (usuario_id, id_sucursalactiva, usuario, nombre, apellido_paterno, apellido_materno, 
+              clave_encriptada, date.today(), id_estado, correo, id_rol, id_perfil))
         
         # Asignar permiso a la app (id_app = 2)
         pivot_id = str(uuid.uuid4())
@@ -131,12 +182,15 @@ def crear_usuario():
         return jsonify({
             "message": "Usuario creado correctamente",
             "id": usuario_id,
+            "id_sucursalactiva": id_sucursalactiva,
             "usuario": usuario,
             "nombre": nombre,
             "apellido_paterno": apellido_paterno,
             "apellido_materno": apellido_materno,
             "correo": correo,
-            "id_sucursalactiva": id_sucursalactiva
+            "id_rol": id_rol,
+            "id_perfil": id_perfil,
+            "id_estado": id_estado
         }), 201
         
     except Exception as e:
@@ -160,6 +214,8 @@ def editar_usuario(usuario_id):
     clave = data.get('clave')  # Opcional, solo si se quiere cambiar
     id_sucursalactiva = data.get('id_sucursalactiva')
     id_estado = data.get('id_estado')  # Opcional, para cambiar estado
+    id_rol = data.get('id_rol')  # Opcional, para cambiar rol
+    id_perfil = data.get('id_perfil')  # Opcional, para cambiar perfil
 
     # Convertir id_sucursalactiva a entero si es necesario
     if id_sucursalactiva:
@@ -174,6 +230,20 @@ def editar_usuario(usuario_id):
             id_estado = int(id_estado)
         except (ValueError, TypeError):
             return jsonify({"error": "id_estado debe ser un número válido"}), 400
+
+    # Convertir id_rol a entero si es necesario
+    if id_rol:
+        try:
+            id_rol = int(id_rol)
+        except (ValueError, TypeError):
+            return jsonify({"error": "id_rol debe ser un número válido"}), 400
+
+    # Convertir id_perfil a entero si es necesario
+    if id_perfil:
+        try:
+            id_perfil = int(id_perfil)
+        except (ValueError, TypeError):
+            return jsonify({"error": "id_perfil debe ser un número válido"}), 400
 
     # Validar campos obligatorios
     if not usuario_nombre or not nombre or not apellido_paterno or not correo or not id_sucursalactiva:
@@ -215,18 +285,18 @@ def editar_usuario(usuario_id):
             sql = """
                 UPDATE general_dim_usuario 
                 SET usuario = %s, nombre = %s, apellido_paterno = %s, apellido_materno = %s, 
-                    correo = %s, clave = %s, id_sucursalactiva = %s, id_estado = %s
+                    correo = %s, clave = %s, id_sucursalactiva = %s, id_estado = %s, id_rol = %s, id_perfil = %s
                 WHERE id = %s
             """
-            valores = (usuario_nombre, nombre, apellido_paterno, apellido_materno, correo, clave_encriptada, id_sucursalactiva, id_estado, usuario_id)
+            valores = (usuario_nombre, nombre, apellido_paterno, apellido_materno, correo, clave_encriptada, id_sucursalactiva, id_estado, id_rol, id_perfil, usuario_id)
         else:
             sql = """
                 UPDATE general_dim_usuario 
                 SET usuario = %s, nombre = %s, apellido_paterno = %s, apellido_materno = %s, 
-                    correo = %s, id_sucursalactiva = %s, id_estado = %s
+                    correo = %s, id_sucursalactiva = %s, id_estado = %s, id_rol = %s, id_perfil = %s
                 WHERE id = %s
             """
-            valores = (usuario_nombre, nombre, apellido_paterno, apellido_materno, correo, id_sucursalactiva, id_estado, usuario_id)
+            valores = (usuario_nombre, nombre, apellido_paterno, apellido_materno, correo, id_sucursalactiva, id_estado, id_rol, id_perfil, usuario_id)
         
         cursor.execute(sql, valores)
         filas_afectadas = cursor.rowcount
@@ -244,6 +314,8 @@ def editar_usuario(usuario_id):
             "correo": correo,
             "id_sucursalactiva": id_sucursalactiva,
             "id_estado": id_estado,
+            "id_rol": id_rol,
+            "id_perfil": id_perfil,
             "filas_afectadas": filas_afectadas
         }), 200
         
@@ -721,5 +793,83 @@ def eliminar_apps_permitidas(usuario_id):
             "apps_eliminadas": filas_eliminadas
         }), 200
         
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# 🔹 Obtener roles disponibles
+@usuarios_bp.route('/roles', methods=['GET'])
+@jwt_required()
+def obtener_roles():
+    usuario_id = get_jwt_identity()
+    if not verificar_admin(usuario_id):
+        return jsonify({"error": "No autorizado"}), 403
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        cursor.execute("""
+            SELECT id, nombre, descripcion
+            FROM general_dim_rol
+            ORDER BY nombre ASC
+        """)
+        
+        roles = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        return jsonify(roles), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# 🔹 Obtener perfiles disponibles
+@usuarios_bp.route('/perfiles', methods=['GET'])
+@jwt_required()
+def obtener_perfiles():
+    usuario_id = get_jwt_identity()
+    if not verificar_admin(usuario_id):
+        return jsonify({"error": "No autorizado"}), 403
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        cursor.execute("""
+            SELECT id, nombre, descripcion
+            FROM general_dim_perfil
+            ORDER BY nombre ASC
+        """)
+        
+        perfiles = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        return jsonify(perfiles), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# 🔹 Obtener estados disponibles
+@usuarios_bp.route('/estados', methods=['GET'])
+@jwt_required()
+def obtener_estados():
+    usuario_id = get_jwt_identity()
+    if not verificar_admin(usuario_id):
+        return jsonify({"error": "No autorizado"}), 403
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        cursor.execute("""
+            SELECT id, nombre, descripcion
+            FROM general_dim_estado
+            ORDER BY nombre ASC
+        """)
+        
+        estados = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        return jsonify(estados), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
