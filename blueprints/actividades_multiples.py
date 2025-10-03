@@ -1113,7 +1113,7 @@ def obtener_actividades_multiples_con_cecos():
                     sr.nombre as nombre_sector
                 FROM tarja_fact_cecoriego cr
                 LEFT JOIN general_dim_ceco c ON cr.id_ceco = c.id
-                LEFT JOIN general_dim_sectorriego sr ON cr.id_sectorriego = sr.id
+                LEFT JOIN riego_dim_sector sr ON cr.id_sectorriego = sr.id
                 WHERE cr.id_actividad = %s
             """, (actividad_id,))
             cecos_riego = cursor.fetchall()
