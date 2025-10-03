@@ -1065,7 +1065,7 @@ def obtener_actividades_multiples_con_cecos():
                 -- Verificar si tiene rendimientos múltiples
                 EXISTS (
                     SELECT 1 
-                    FROM tarja_fact_rendimiento r 
+                    FROM tarja_fact_rendimientopropio r 
                     WHERE r.id_actividad = a.id
                 ) as tiene_rendimientos_multiples
             FROM tarja_fact_actividad a
