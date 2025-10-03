@@ -1017,3 +1017,192 @@ def crear_ceco_riego_multiple():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# 🚀 Endpoint unificado para obtener actividades múltiples con todos los CECOs
+@actividades_multiples_bp.route('/con-cecos', methods=['GET'])
+@jwt_required()
+def obtener_actividades_multiples_con_cecos():
+    """
+    Endpoint unificado que trae todas las actividades múltiples con todos sus CECOs
+    en una sola llamada para optimizar el rendimiento del frontend
+    """
+    try:
+        usuario_id = get_jwt_identity()
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+
+        # Obtener sucursal activa del usuario
+        cursor.execute("SELECT id_sucursalactiva FROM general_dim_usuario WHERE id = %s", (usuario_id,))
+        usuario = cursor.fetchone()
+        if not usuario or not usuario['id_sucursalactiva']:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "No se encontró sucursal activa para el usuario"}), 400
+        id_sucursal = usuario['id_sucursalactiva']
+
+        # Consulta optimizada para obtener todas las actividades múltiples con todos sus CECOs
+        cursor.execute("""
+            SELECT 
+                a.id,
+                a.fecha,
+                a.id_estadoactividad,
+                a.id_labor,
+                a.id_unidad,
+                a.id_tipotrabajador,
+                a.id_tiporendimiento,
+                a.id_contratista,
+                a.id_sucursalactiva,
+                a.hora_inicio,
+                a.hora_fin,
+                a.tarifa,
+                l.nombre as nombre_labor,
+                u.nombre as nombre_unidad,
+                tt.nombre as nombre_tipotrabajador,
+                tr.nombre as nombre_tiporendimiento,
+                tc.nombre as nombre_tipoceco,
+                ea.nombre as nombre_estado,
+                s.nombre as nombre_sucursal,
+                -- Verificar si tiene rendimientos múltiples
+                EXISTS (
+                    SELECT 1 
+                    FROM tarja_fact_rendimiento r 
+                    WHERE r.id_actividad = a.id
+                ) as tiene_rendimientos_multiples
+            FROM tarja_fact_actividad a
+            LEFT JOIN general_dim_labor l ON a.id_labor = l.id
+            LEFT JOIN tarja_dim_unidad u ON a.id_unidad = u.id
+            LEFT JOIN general_dim_tipotrabajador tt ON a.id_tipotrabajador = tt.id
+            LEFT JOIN tarja_dim_tiporendimiento tr ON a.id_tiporendimiento = tr.id
+            LEFT JOIN general_dim_cecotipo tc ON a.id_tipoceco = tc.id
+            LEFT JOIN tarja_dim_estadoactividad ea ON a.id_estadoactividad = ea.id
+            LEFT JOIN general_dim_sucursal s ON a.id_sucursalactiva = s.id
+            WHERE a.id_usuario = %s 
+            AND a.id_sucursalactiva = %s 
+            AND a.id_tiporendimiento = 3  -- MÚLTIPLE
+            AND (a.id_estadoactividad = 1 OR a.id_estadoactividad = 2)  -- 1: creada, 2: revisada
+            ORDER BY a.fecha DESC
+        """, (usuario_id, id_sucursal))
+
+        actividades = cursor.fetchall()
+        
+        # Para cada actividad, obtener todos sus CECOs
+        resultado = []
+        for actividad in actividades:
+            actividad_id = actividad['id']
+            
+            # Obtener CECOs productivos
+            cursor.execute("""
+                SELECT 
+                    cp.id_ceco,
+                    c.nombre as nombre_ceco,
+                    cp.id_cuartel,
+                    cu.nombre as nombre_cuartel
+                FROM tarja_fact_cecoproductivo cp
+                LEFT JOIN general_dim_ceco c ON cp.id_ceco = c.id
+                LEFT JOIN general_dim_cuartel cu ON cp.id_cuartel = cu.id
+                WHERE cp.id_actividad = %s
+            """, (actividad_id,))
+            cecos_productivos = cursor.fetchall()
+            
+            # Obtener CECOs de riego
+            cursor.execute("""
+                SELECT 
+                    cr.id_ceco,
+                    c.nombre as nombre_ceco,
+                    cr.id_sectorriego,
+                    sr.nombre as nombre_sector
+                FROM tarja_fact_cecoriego cr
+                LEFT JOIN general_dim_ceco c ON cr.id_ceco = c.id
+                LEFT JOIN general_dim_sectorriego sr ON cr.id_sectorriego = sr.id
+                WHERE cr.id_actividad = %s
+            """, (actividad_id,))
+            cecos_riego = cursor.fetchall()
+            
+            # Obtener CECOs de maquinaria
+            cursor.execute("""
+                SELECT 
+                    cm.id_ceco,
+                    c.nombre as nombre_ceco,
+                    cm.id_maquinaria,
+                    m.nombre as nombre_maquinaria
+                FROM tarja_fact_cecomaquinaria cm
+                LEFT JOIN general_dim_ceco c ON cm.id_ceco = c.id
+                LEFT JOIN general_dim_maquinaria m ON cm.id_maquinaria = m.id
+                WHERE cm.id_actividad = %s
+            """, (actividad_id,))
+            cecos_maquinaria = cursor.fetchall()
+            
+            # Obtener CECOs de inversión
+            cursor.execute("""
+                SELECT 
+                    ci.id_ceco,
+                    c.nombre as nombre_ceco,
+                    ci.id_proyecto,
+                    p.nombre as nombre_proyecto
+                FROM tarja_fact_cecoinversion ci
+                LEFT JOIN general_dim_ceco c ON ci.id_ceco = c.id
+                LEFT JOIN general_dim_proyecto p ON ci.id_proyecto = p.id
+                WHERE ci.id_actividad = %s
+            """, (actividad_id,))
+            cecos_inversion = cursor.fetchall()
+            
+            # Obtener CECOs administrativos
+            cursor.execute("""
+                SELECT 
+                    ca.id_ceco,
+                    c.nombre as nombre_ceco,
+                    ca.id_departamento,
+                    d.nombre as nombre_departamento
+                FROM tarja_fact_cecoadministrativo ca
+                LEFT JOIN general_dim_ceco c ON ca.id_ceco = c.id
+                LEFT JOIN general_dim_departamento d ON ca.id_departamento = d.id
+                WHERE ca.id_actividad = %s
+            """, (actividad_id,))
+            cecos_administrativos = cursor.fetchall()
+            
+            # Obtener rendimientos múltiples
+            cursor.execute("""
+                SELECT 
+                    r.id,
+                    r.id_ceco,
+                    c.nombre as nombre_ceco,
+                    r.cantidad,
+                    r.observaciones
+                FROM tarja_fact_rendimiento r
+                LEFT JOIN general_dim_ceco c ON r.id_ceco = c.id
+                WHERE r.id_actividad = %s
+            """, (actividad_id,))
+            rendimientos_multiples = cursor.fetchall()
+            
+            # Construir el objeto de respuesta
+            actividad_completa = {
+                "id": actividad['id'],
+                "nombre_labor": actividad['nombre_labor'],
+                "fecha": actividad['fecha'].strftime('%Y-%m-%d') if actividad['fecha'] else None,
+                "cecos_productivos": cecos_productivos,
+                "cecos_riego": cecos_riego,
+                "cecos_maquinaria": cecos_maquinaria,
+                "cecos_inversion": cecos_inversion,
+                "cecos_administrativos": cecos_administrativos,
+                "rendimientos_multiples": rendimientos_multiples,
+                "tiene_rendimientos_multiples": actividad['tiene_rendimientos_multiples']
+            }
+            
+            resultado.append(actividad_completa)
+
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "data": resultado,
+            "count": len(resultado),
+            "message": f"Se obtuvieron {len(resultado)} actividades múltiples con todos sus CECOs"
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "error_type": type(e).__name__
+        }), 500
