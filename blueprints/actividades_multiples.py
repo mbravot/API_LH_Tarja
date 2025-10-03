@@ -1118,47 +1118,8 @@ def obtener_actividades_multiples_con_cecos():
             """, (actividad_id,))
             cecos_riego = cursor.fetchall()
             
-            # Obtener CECOs de maquinaria
-            cursor.execute("""
-                SELECT 
-                    cm.id_ceco,
-                    c.nombre as nombre_ceco,
-                    cm.id_maquinaria,
-                    m.nombre as nombre_maquinaria
-                FROM tarja_fact_cecomaquinaria cm
-                LEFT JOIN general_dim_ceco c ON cm.id_ceco = c.id
-                LEFT JOIN maquinaria_dim_maquinaria m ON cm.id_maquinaria = m.id
-                WHERE cm.id_actividad = %s
-            """, (actividad_id,))
-            cecos_maquinaria = cursor.fetchall()
-            
-            # Obtener CECOs de inversión
-            cursor.execute("""
-                SELECT 
-                    ci.id_ceco,
-                    c.nombre as nombre_ceco,
-                    ci.id_proyecto,
-                    p.nombre as nombre_proyecto
-                FROM tarja_fact_cecoinversion ci
-                LEFT JOIN general_dim_ceco c ON ci.id_ceco = c.id
-                LEFT JOIN inversion_dim_proyecto p ON ci.id_proyecto = p.id
-                WHERE ci.id_actividad = %s
-            """, (actividad_id,))
-            cecos_inversion = cursor.fetchall()
-            
-            # Obtener CECOs administrativos
-            cursor.execute("""
-                SELECT 
-                    ca.id_ceco,
-                    c.nombre as nombre_ceco,
-                    ca.id_departamento,
-                    d.nombre as nombre_departamento
-                FROM tarja_fact_cecoadministrativo ca
-                LEFT JOIN general_dim_ceco c ON ca.id_ceco = c.id
-                LEFT JOIN administrativo_dim_departamento d ON ca.id_departamento = d.id
-                WHERE ca.id_actividad = %s
-            """, (actividad_id,))
-            cecos_administrativos = cursor.fetchall()
+            # Las actividades múltiples solo manejan CECOs productivos y de riego
+            # No se incluyen maquinaria, inversión ni administrativos
             
             # Obtener rendimientos múltiples (rendimientos ya registrados)
             cursor.execute("""
@@ -1219,9 +1180,6 @@ def obtener_actividades_multiples_con_cecos():
                 "fecha": actividad['fecha'].strftime('%Y-%m-%d') if actividad['fecha'] else None,
                 "cecos_productivos": cecos_productivos,
                 "cecos_riego": cecos_riego,
-                "cecos_maquinaria": cecos_maquinaria,
-                "cecos_inversion": cecos_inversion,
-                "cecos_administrativos": cecos_administrativos,
                 "rendimientos_multiples": rendimientos_multiples,
                 "tiene_rendimientos_multiples": actividad['tiene_rendimientos_multiples'],
                 # Datos específicos que el frontend necesita para evitar llamadas adicionales
