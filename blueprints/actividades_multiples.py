@@ -1160,19 +1160,57 @@ def obtener_actividades_multiples_con_cecos():
             """, (actividad_id,))
             cecos_administrativos = cursor.fetchall()
             
-            # Obtener rendimientos múltiples
+            # Obtener rendimientos múltiples (rendimientos ya registrados)
             cursor.execute("""
                 SELECT 
                     r.id,
+                    r.id_actividad,
+                    r.id_colaborador,
+                    r.rendimiento,
+                    r.horas_trabajadas,
+                    r.horas_extras,
+                    r.id_bono,
                     r.id_ceco,
-                    c.nombre as nombre_ceco,
-                    r.cantidad,
-                    r.observaciones
-                FROM tarja_fact_rendimiento r
-                LEFT JOIN general_dim_ceco c ON r.id_ceco = c.id
+                    CONCAT(c.nombre, ' ', c.apellido_paterno, ' ', COALESCE(c.apellido_materno, '')) as nombre_colaborador,
+                    CONCAT(c.rut, '-', c.codigo_verificador) as rut_colaborador,
+                    b.nombre as nombre_bono,
+                    COALESCE(ce.nombre, 'Sin nombre') as nombre_ceco
+                FROM tarja_fact_rendimientopropio r
+                LEFT JOIN general_dim_colaborador c ON r.id_colaborador = c.id
+                LEFT JOIN general_dim_bono b ON r.id_bono = b.id
+                LEFT JOIN general_dim_ceco ce ON r.id_ceco = ce.id
                 WHERE r.id_actividad = %s
+                ORDER BY c.nombre ASC, c.apellido_paterno ASC, c.apellido_materno ASC
             """, (actividad_id,))
             rendimientos_multiples = cursor.fetchall()
+            
+            # Obtener CECOs disponibles para rendimientos (combinando riego y productivos)
+            cursor.execute("""
+                SELECT 
+                    c.id as id_ceco,
+                    COALESCE(c.nombre, 'Sin nombre') as nombre_ceco,
+                    'riego' as tipo_ceco
+                FROM tarja_fact_cecoriego tcr
+                LEFT JOIN general_dim_ceco c ON tcr.id_ceco = c.id
+                WHERE tcr.id_actividad = %s
+                ORDER BY c.nombre ASC
+            """, (actividad_id,))
+            cecos_riego_disponibles = cursor.fetchall()
+            
+            cursor.execute("""
+                SELECT 
+                    c.id as id_ceco,
+                    COALESCE(c.nombre, 'Sin nombre') as nombre_ceco,
+                    'productivo' as tipo_ceco
+                FROM tarja_fact_cecoproductivo tcp
+                LEFT JOIN general_dim_ceco c ON tcp.id_ceco = c.id
+                WHERE tcp.id_actividad = %s
+                ORDER BY c.nombre ASC
+            """, (actividad_id,))
+            cecos_productivos_disponibles = cursor.fetchall()
+            
+            # Combinar CECOs disponibles para rendimientos
+            cecos_disponibles_rendimientos = cecos_riego_disponibles + cecos_productivos_disponibles
             
             # Construir el objeto de respuesta
             actividad_completa = {
@@ -1185,7 +1223,10 @@ def obtener_actividades_multiples_con_cecos():
                 "cecos_inversion": cecos_inversion,
                 "cecos_administrativos": cecos_administrativos,
                 "rendimientos_multiples": rendimientos_multiples,
-                "tiene_rendimientos_multiples": actividad['tiene_rendimientos_multiples']
+                "tiene_rendimientos_multiples": actividad['tiene_rendimientos_multiples'],
+                # Datos específicos que el frontend necesita para evitar llamadas adicionales
+                "cecos_disponibles_rendimientos": cecos_disponibles_rendimientos,
+                "rendimientos_existentes": rendimientos_multiples  # Alias para compatibilidad
             }
             
             resultado.append(actividad_completa)
