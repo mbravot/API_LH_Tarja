@@ -1127,7 +1127,7 @@ def obtener_actividades_multiples_con_cecos():
                     m.nombre as nombre_maquinaria
                 FROM tarja_fact_cecomaquinaria cm
                 LEFT JOIN general_dim_ceco c ON cm.id_ceco = c.id
-                LEFT JOIN general_dim_maquinaria m ON cm.id_maquinaria = m.id
+                LEFT JOIN maquinaria_dim_maquinaria m ON cm.id_maquinaria = m.id
                 WHERE cm.id_actividad = %s
             """, (actividad_id,))
             cecos_maquinaria = cursor.fetchall()
@@ -1141,7 +1141,7 @@ def obtener_actividades_multiples_con_cecos():
                     p.nombre as nombre_proyecto
                 FROM tarja_fact_cecoinversion ci
                 LEFT JOIN general_dim_ceco c ON ci.id_ceco = c.id
-                LEFT JOIN general_dim_proyecto p ON ci.id_proyecto = p.id
+                LEFT JOIN inversion_dim_proyecto p ON ci.id_proyecto = p.id
                 WHERE ci.id_actividad = %s
             """, (actividad_id,))
             cecos_inversion = cursor.fetchall()
@@ -1155,7 +1155,7 @@ def obtener_actividades_multiples_con_cecos():
                     d.nombre as nombre_departamento
                 FROM tarja_fact_cecoadministrativo ca
                 LEFT JOIN general_dim_ceco c ON ca.id_ceco = c.id
-                LEFT JOIN general_dim_departamento d ON ca.id_departamento = d.id
+                LEFT JOIN administrativo_dim_departamento d ON ca.id_departamento = d.id
                 WHERE ca.id_actividad = %s
             """, (actividad_id,))
             cecos_administrativos = cursor.fetchall()
