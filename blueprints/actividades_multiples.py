@@ -2,10 +2,60 @@ import datetime
 from flask import Blueprint, jsonify, request
 from utils.db import get_db_connection
 from flask_jwt_extended import jwt_required, get_jwt_identity
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, time
 
 
 actividades_multiples_bp = Blueprint('actividades_multiples_bp', __name__)
+
+def calcular_horario_fin(fecha_actividad, id_empresa):
+    """
+    Calcula el horario de fin de una actividad basándose en las horas por día de la empresa.
+    
+    Args:
+        fecha_actividad (date): Fecha de la actividad
+        id_empresa (int): ID de la empresa
+    
+    Returns:
+        time: Horario de fin calculado
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        
+        # Obtener el día de la semana (0=lunes, 6=domingo)
+        dia_semana = fecha_actividad.weekday()
+        
+        # Mapear día de la semana a nombre
+        dias_semana = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo']
+        nombre_dia = dias_semana[dia_semana]
+        
+        # Obtener las horas por día de la empresa
+        cursor.execute("""
+            SELECT horas_dia 
+            FROM tarja_dim_horaspordia 
+            WHERE id_empresa = %s AND nombre_dia = %s
+        """, (id_empresa, nombre_dia))
+        
+        resultado = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        if resultado:
+            horas_dia = float(resultado['horas_dia'])
+        else:
+            # Si no se encuentra configuración, usar 9 horas por defecto
+            horas_dia = 9.0
+        
+        # Calcular horario de fin (inicio: 08:00)
+        hora_inicio = time(8, 0)  # 08:00 AM
+        minutos_totales = int(horas_dia * 60)
+        hora_fin = datetime.combine(date.today(), hora_inicio) + timedelta(minutes=minutos_totales)
+        
+        return hora_fin.time()
+        
+    except Exception as e:
+        # En caso de error, retornar horario por defecto (17:00)
+        return time(17, 0)
 
 # 🚀 Endpoint para obtener actividades múltiples por sucursal
 @actividades_multiples_bp.route('/sucursal/<string:id_sucursal>', methods=['GET'])
@@ -172,30 +222,59 @@ def crear_actividad_multiple():
         data = request.json
         usuario_id = get_jwt_identity()
 
-        # Obtener sucursal activa del usuario
+        # Obtener sucursal activa del usuario y empresa
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT id_sucursalactiva FROM general_dim_usuario WHERE id = %s", (usuario_id,))
+        cursor.execute("""
+            SELECT u.id_sucursalactiva, s.id_empresa 
+            FROM general_dim_usuario u
+            LEFT JOIN general_dim_sucursal s ON u.id_sucursalactiva = s.id
+            WHERE u.id = %s
+        """, (usuario_id,))
         usuario = cursor.fetchone()
         if not usuario or not usuario['id_sucursalactiva']:
             cursor.close()
             conn.close()
             return jsonify({"error": "No se encontró sucursal activa para el usuario"}), 400
         id_sucursalactiva = usuario['id_sucursalactiva']
+        id_empresa = usuario['id_empresa']
 
         # Si no viene fecha, usar la fecha de hoy
         fecha = data.get('fecha')
         if not fecha or fecha in [None, '']:
             fecha = date.today().isoformat()
 
-        # Validar campos requeridos (excluyendo los que son fijos)
+        # Validar campos requeridos (excluyendo los que son fijos o calculados automáticamente)
         campos_requeridos = [
-            'id_labor', 'id_unidad', 'id_tipoceco', 'tarifa', 
-            'hora_inicio', 'hora_fin', 'id_estadoactividad'
+            'id_labor', 'id_unidad', 'id_tipoceco', 'tarifa', 'id_estadoactividad'
         ]
         for campo in campos_requeridos:
             if campo not in data or data[campo] in [None, '']:
                 return jsonify({"error": f"El campo {campo} es requerido"}), 400
+
+        # Calcular horarios sugeridos automáticamente
+        fecha_actividad = datetime.strptime(fecha, '%Y-%m-%d').date()
+        hora_inicio_sugerida = time(8, 0)  # Siempre inicia a las 08:00
+        hora_fin_sugerida = calcular_horario_fin(fecha_actividad, id_empresa)
+        
+        # Permitir que el usuario modifique los horarios sugeridos
+        hora_inicio = data.get('hora_inicio')
+        if hora_inicio:
+            try:
+                hora_inicio = datetime.strptime(hora_inicio, '%H:%M').time()
+            except ValueError:
+                return jsonify({"error": "Formato de hora_inicio inválido. Use HH:MM"}), 400
+        else:
+            hora_inicio = hora_inicio_sugerida
+            
+        hora_fin = data.get('hora_fin')
+        if hora_fin:
+            try:
+                hora_fin = datetime.strptime(hora_fin, '%H:%M').time()
+            except ValueError:
+                return jsonify({"error": "Formato de hora_fin inválido. Use HH:MM"}), 400
+        else:
+            hora_fin = hora_fin_sugerida
 
         # Validar que el tipo de rendimiento sea múltiple (3)
         id_tiporendimiento = data.get('id_tiporendimiento')
@@ -240,8 +319,8 @@ def crear_actividad_multiple():
             data['id_unidad'],
             data['id_tipoceco'],
             data['tarifa'],
-            data['hora_inicio'],
-            data['hora_fin'],
+            hora_inicio,  # Horario calculado automáticamente
+            hora_fin,     # Horario calculado automáticamente
             data['id_estadoactividad']
         ))
 
@@ -264,7 +343,14 @@ def crear_actividad_multiple():
             "success": True,
             "message": "Actividad múltiple creada correctamente",
             "id_actividad": id_actividad,
-            "id_tipoceco": data['id_tipoceco']
+            "id_tipoceco": data['id_tipoceco'],
+            "hora_inicio": str(hora_inicio),
+            "hora_fin": str(hora_fin),
+            "fecha": fecha,
+            "horarios_sugeridos": {
+                "hora_inicio_sugerida": str(hora_inicio_sugerida),
+                "hora_fin_sugerida": str(hora_fin_sugerida)
+            }
         }), 201
 
     except Exception as e:
@@ -281,11 +367,53 @@ def editar_actividad_multiple(actividad_id):
         # Validar campos requeridos (excluyendo los que son fijos)
         campos_requeridos = [
             'fecha', 'id_labor', 'id_unidad', 'id_tipoceco', 
-            'tarifa', 'hora_inicio', 'hora_fin', 'id_estadoactividad'
+            'tarifa', 'id_estadoactividad'
         ]
         for campo in campos_requeridos:
             if campo not in data or data[campo] in [None, '']:
                 return jsonify({"error": f"El campo {campo} es requerido"}), 400
+
+        # Obtener empresa para calcular horarios sugeridos
+        cursor_empresa = conn.cursor(dictionary=True)
+        cursor_empresa.execute("""
+            SELECT s.id_empresa 
+            FROM general_dim_usuario u
+            LEFT JOIN general_dim_sucursal s ON u.id_sucursalactiva = s.id
+            WHERE u.id = %s
+        """, (usuario_id,))
+        empresa = cursor_empresa.fetchone()
+        cursor_empresa.close()
+        
+        if not empresa or not empresa['id_empresa']:
+            cursor.close()
+            conn.close()
+            return jsonify({"error": "No se encontró empresa para el usuario"}), 400
+        
+        id_empresa = empresa['id_empresa']
+        
+        # Calcular horarios sugeridos automáticamente
+        fecha_actividad = datetime.strptime(data['fecha'], '%Y-%m-%d').date()
+        hora_inicio_sugerida = time(8, 0)  # Siempre inicia a las 08:00
+        hora_fin_sugerida = calcular_horario_fin(fecha_actividad, id_empresa)
+        
+        # Permitir que el usuario modifique los horarios sugeridos
+        hora_inicio = data.get('hora_inicio')
+        if hora_inicio:
+            try:
+                hora_inicio = datetime.strptime(hora_inicio, '%H:%M').time()
+            except ValueError:
+                return jsonify({"error": "Formato de hora_inicio inválido. Use HH:MM"}), 400
+        else:
+            hora_inicio = hora_inicio_sugerida
+            
+        hora_fin = data.get('hora_fin')
+        if hora_fin:
+            try:
+                hora_fin = datetime.strptime(hora_fin, '%H:%M').time()
+            except ValueError:
+                return jsonify({"error": "Formato de hora_fin inválido. Use HH:MM"}), 400
+        else:
+            hora_fin = hora_fin_sugerida
 
         # Para actividades múltiples, el tipo de rendimiento siempre es 3 (MÚLTIPLE)
         id_tiporendimiento = 3
@@ -351,7 +479,15 @@ def editar_actividad_multiple(actividad_id):
         cursor.close()
         conn.close()
 
-        return jsonify({"message": "Actividad múltiple actualizada correctamente"}), 200
+        return jsonify({
+            "message": "Actividad múltiple actualizada correctamente",
+            "hora_inicio": str(hora_inicio),
+            "hora_fin": str(hora_fin),
+            "horarios_sugeridos": {
+                "hora_inicio_sugerida": str(hora_inicio_sugerida),
+                "hora_fin_sugerida": str(hora_fin_sugerida)
+            }
+        }), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1052,6 +1188,7 @@ def obtener_actividades_multiples_con_cecos():
                 a.id_tiporendimiento,
                 a.id_contratista,
                 a.id_sucursalactiva,
+                a.id_tipoceco,
                 a.hora_inicio,
                 a.hora_fin,
                 a.tarifa,
